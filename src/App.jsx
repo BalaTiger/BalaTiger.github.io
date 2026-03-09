@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+// socket.io-client is loaded at runtime via CDN (only outside Claude Artifacts)
 
 // ══════════════════════════════════════════════════════════════
 //  DATA
@@ -38,12 +39,12 @@ const RINFO={
 };
 // Aged-manuscript card style per letter
 const CS={
-  A:{bg:'#100d1a',border:'#3a2a6a',borderBright:'#6050a0',text:'#8878c0',glow:'#3a2a6a'},
-  B:{bg:'#0a120a',border:'#1e4a1e',borderBright:'#3a7a3a',text:'#609060',glow:'#1e4a1e'},
-  C:{bg:'#18120a',border:'#5a3a10',borderBright:'#8a6020',text:'#b08030',glow:'#5a3a10'},
-  D:{bg:'#160a0a',border:'#6a1818',borderBright:'#a02828',text:'#b85050',glow:'#6a1818'},
+  A:{bg:'#100d1a',border:'#3a2a6a',borderBright:'#6050a0',text:'#b0a0e8',glow:'#3a2a6a'},
+  B:{bg:'#0a120a',border:'#1e4a1e',borderBright:'#3a7a3a',text:'#80d080',glow:'#1e4a1e'},
+  C:{bg:'#18120a',border:'#5a3a10',borderBright:'#8a6020',text:'#d4a840',glow:'#5a3a10'},
+  D:{bg:'#160a0a',border:'#6a1818',borderBright:'#a02828',text:'#e07070',glow:'#6a1818'},
 };
-const GOD_CS={bg:'#080818',border:'#3a1a5a',borderBright:'#7040aa',text:'#b080e0',glow:'#4a1a8a'};
+const GOD_CS={bg:'#080818',border:'#3a1a5a',borderBright:'#7040aa',text:'#cc99ff',glow:'#4a1a8a'};
 // ── GOD CARD DATA ─────────────────────────────────────────────
 const GOD_DEFS={
   NYA:{
@@ -740,7 +741,7 @@ function CardFlipAnim({card,triggerName,exiting}){
         <div style={{position:'absolute',inset:0,borderRadius:4,
           background:'repeating-linear-gradient(45deg,#2a1a0820 0px,#2a1a0820 1px,transparent 1px,transparent 4px)'}}/>
         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',
-          fontFamily:"'Cinzel',serif",fontSize:14,color:'#3a2810',opacity:0.6}}>✦</div>
+          fontFamily:"'Cinzel',serif",fontSize:14,color:'#a07838',opacity:0.6}}>✦</div>
       </div>
     </div>
   );
@@ -869,12 +870,12 @@ function CardFlipAnim({card,triggerName,exiting}){
             <div style={{position:'absolute',inset:12,border:'1px solid #2a1a08',borderRadius:2}}/>
             <div style={{textAlign:'center'}}>
               <div style={{fontSize:36,color:'#5a3810',lineHeight:1,filter:'drop-shadow(0 0 6px #3a2010)'}}>✦</div>
-              <div style={{fontSize:11,color:'#3a2810',fontFamily:"'Cinzel',serif",letterSpacing:2,marginTop:4}}>ARCANA</div>
+              <div style={{fontSize:11,color:'#a07838',fontFamily:"'Cinzel',serif",letterSpacing:2,marginTop:4}}>ARCANA</div>
             </div>
-            <div style={{position:'absolute',top:6,left:8,fontSize:8,color:'#3a2810'}}>✦</div>
-            <div style={{position:'absolute',top:6,right:8,fontSize:8,color:'#3a2810'}}>✦</div>
-            <div style={{position:'absolute',bottom:6,left:8,fontSize:8,color:'#3a2810'}}>✦</div>
-            <div style={{position:'absolute',bottom:6,right:8,fontSize:8,color:'#3a2810'}}>✦</div>
+            <div style={{position:'absolute',top:6,left:8,fontSize:8,color:'#a07838'}}>✦</div>
+            <div style={{position:'absolute',top:6,right:8,fontSize:8,color:'#a07838'}}>✦</div>
+            <div style={{position:'absolute',bottom:6,left:8,fontSize:8,color:'#a07838'}}>✦</div>
+            <div style={{position:'absolute',bottom:6,right:8,fontSize:8,color:'#a07838'}}>✦</div>
           </div>
           {/* FRONT face */}
           <div style={{
@@ -886,7 +887,7 @@ function CardFlipAnim({card,triggerName,exiting}){
             <div style={{position:'absolute',top:4,right:6,fontSize:8,color:s.border,opacity:0.7}}>✦</div>
             <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:s.text,fontSize:28,lineHeight:1}}>{card.key}</div>
             <div style={{fontFamily:"'Cinzel',serif",color:'#c8a96e',fontSize:11.5,fontWeight:600,marginTop:6,lineHeight:1.3}}>{card.name}</div>
-            <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#7a6040',fontSize:9.5,marginTop:8,lineHeight:1.4}}>{card.desc}</div>
+            <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#b89858',fontSize:9.5,marginTop:8,lineHeight:1.4}}>{card.desc}</div>
             <div style={{position:'absolute',bottom:4,left:'50%',transform:'translateX(-50%)',color:s.border,fontSize:7,opacity:0.5}}>— ✦ —</div>
           </div>
         </div>
@@ -1045,7 +1046,7 @@ function DiceRollAnim({anim,exiting}){
       animation:exiting?'animFadeOut 0.18s ease-in forwards':'animFadeIn 0.12s ease-out forwards',
     }}>
       <div style={{position:'absolute',inset:0,boxShadow:'inset 0 0 120px #c8a96e22',pointerEvents:'none'}}/>
-      <div style={{fontFamily:"'Cinzel',serif",color:'#7a6040',fontSize:11,letterSpacing:4,marginBottom:18,textTransform:'uppercase'}}>
+      <div style={{fontFamily:"'Cinzel',serif",color:'#b89858',fontSize:11,letterSpacing:4,marginBottom:18,textTransform:'uppercase'}}>
         {rollerName||'？'} 选择休息
       </div>
       <div style={{display:'flex',gap:36,marginBottom:20}}>
@@ -1277,7 +1278,7 @@ function TreasureMapAnim({hand,onConfirm}){
           ✦ 藏宝图已完整 ✦
         </div>
         <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
-          color:'#7a6040',fontSize:13,letterSpacing:1}}>
+          color:'#b89858',fontSize:13,letterSpacing:1}}>
           遗迹的秘密，尽在掌中
         </div>
       </div>
@@ -1313,7 +1314,7 @@ function TreasureMapAnim({hand,onConfirm}){
             }}>
               <div style={{fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,
                 color:s.text,textShadow:`0 0 10px ${s.glow}`}}>{card.letter}{card.number}</div>
-              <div style={{fontSize:8,color:s.text,opacity:0.65,fontFamily:"'IM Fell English',serif",
+              <div style={{fontSize:8,color:s.text,opacity:0.88,fontFamily:"'IM Fell English',serif",
                 fontStyle:'italic',textAlign:'center',padding:'0 5px',marginTop:3,lineHeight:1.4}}>
                 {card.name}
               </div>
@@ -1400,7 +1401,7 @@ function RoleRevealAnim({role,onDone}){
         <div style={{width:180,height:1,background:'linear-gradient(90deg,transparent,#5a4020,transparent)',margin:'0 auto 26px',animation:'animFadeIn 0.5s 0.3s both'}}/>
         {/* Line 2: label + slot */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,animation:'animFadeIn 0.5s 0.4s both'}}>
-          <span style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#7a6040',fontSize:14,whiteSpace:'nowrap'}}>
+          <span style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#b89858',fontSize:14,whiteSpace:'nowrap'}}>
             你本局的身份：
           </span>
           {/* Slot window */}
@@ -1506,11 +1507,11 @@ function GodDDCard({card,onClick,disabled,selected,highlight,small,compact,godLe
       {/* Top: god name */}
       <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:nameFsz,color:col,lineHeight:1.2,textShadow:`0 0 8px ${col}66`,wordBreak:'keep-all'}}>{def.name}</div>
       {/* Subtitle */}
-      {!small&&<div style={{fontFamily:"'IM Fell English',serif",fontStyle:'italic',fontSize:subFsz,color:col+'aa',lineHeight:1.2,marginTop:2,wordBreak:'keep-all'}}>{def.subtitle}</div>}
+      {!small&&<div style={{fontFamily:"'IM Fell English',serif",fontStyle:'italic',fontSize:subFsz,color:col,lineHeight:1.2,marginTop:2,wordBreak:'keep-all',opacity:0.85}}>{def.subtitle}</div>}
       {/* Divider */}
       {!small&&!compact&&<div style={{height:1,background:`linear-gradient(90deg,${col}88,transparent)`,margin:'4px 0'}}/>}
       {/* God power name small */}
-      {!small&&!compact&&<div style={{fontFamily:"'Cinzel',serif",fontSize:7.5,color:col+'cc',letterSpacing:0.5,lineHeight:1.3}}>「{def.power}」</div>}
+      {!small&&!compact&&<div style={{fontFamily:"'Cinzel',serif",fontSize:7.5,color:col,letterSpacing:0.5,lineHeight:1.3,opacity:0.9}}>「{def.power}」</div>}
       {/* Octopus bottom-left */}
       {!small&&!compact&&(
         <div style={{position:'absolute',bottom:2,left:2}}>
@@ -1545,9 +1546,9 @@ function DDCard({card,onClick,disabled,selected,highlight,small,compact,godLevel
     }}>
       {/* Corner ornament */}
       {!small&&!compact&&<div style={{position:'absolute',top:3,right:5,color:s.border,fontSize:9,opacity:0.7}}>✦</div>}
-      <div style={{color:s.text,fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:small?12:compact?15:18,lineHeight:1}}>{card.key}</div>
-      {!small&&<div style={{color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",fontSize:compact?9.5:10.5,fontWeight:600,marginTop:compact?2:4,lineHeight:1.25}}>{card.name}</div>}
-      {!small&&!compact&&<div style={{color:'#7a6040',fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',fontSize:9.5,marginTop:'auto',lineHeight:1.35}}>{card.desc}</div>}
+      <div style={{color:s.text,fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:small?12:compact?15:18,lineHeight:1,textShadow:`0 0 6px ${s.text}55`}}>{card.key}</div>
+      {!small&&<div style={{color:'#e8cc88',fontFamily:"'IM Fell English','Georgia',serif",fontSize:compact?9.5:10.5,fontWeight:600,marginTop:compact?2:4,lineHeight:1.25}}>{card.name}</div>}
+      {!small&&!compact&&<div style={{color:'#d4b468',fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',fontSize:9.5,marginTop:'auto',lineHeight:1.35}}>{card.desc}</div>}
       {/* Bottom ornament */}
       {!small&&!compact&&<div style={{position:'absolute',bottom:3,left:'50%',transform:'translateX(-50%)',color:s.border,fontSize:8,opacity:0.5}}>— ✦ —</div>}
     </div>
@@ -1564,7 +1565,7 @@ function DDCardBack({small}){
       borderRadius:3,
       display:'flex',alignItems:'center',justifyContent:'center',
     }}>
-      <div style={{color:'#3a2510',fontSize:small?14:18,fontFamily:"serif"}}>✦</div>
+      <div style={{color:'#7a5a2a',fontSize:small?14:18,fontFamily:"serif"}}>✦</div>
     </div>
   );
 }
@@ -1573,7 +1574,7 @@ function DDCardBack({small}){
 function StatBar({label,val,color,trackColor}){
   return(
     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4}}>
-      <span style={{fontFamily:"'Cinzel',serif",color:'#5a4020',fontSize:9,width:26,letterSpacing:1}}>{label}</span>
+      <span style={{fontFamily:"'Cinzel',serif",color:'#a07838',fontSize:9,width:26,letterSpacing:1}}>{label}</span>
       <div style={{flex:1,height:6,background:trackColor||'#1a1008',border:'1px solid #2a1a08',borderRadius:1,overflow:'hidden'}}>
         <div style={{height:'100%',width:`${val*10}%`,background:color,transition:'width .35s',borderRadius:1}}/>
       </div>
@@ -1942,7 +1943,7 @@ function GodCardDisplay({card,level=1}){
       boxShadow:`0 0 30px ${def.col}66`,
     }}>
       <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:11,color:def.col,letterSpacing:2,marginBottom:2}}>{def.name}</div>
-      <div style={{fontFamily:"'IM Fell English',serif",fontStyle:'italic',fontSize:10,color:'#7a6060',marginBottom:10}}>{def.subtitle}</div>
+      <div style={{fontFamily:"'IM Fell English',serif",fontStyle:'italic',fontSize:10,color:'#b89090',marginBottom:10}}>{def.subtitle}</div>
       <div style={{width:'80%',height:1,background:`linear-gradient(90deg,transparent,${def.col},transparent)`,margin:'0 auto 10px'}}/>
       <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:def.col,letterSpacing:1,marginBottom:6}}>{def.power}</div>
       <div style={{fontFamily:"'IM Fell English',serif",fontStyle:'italic',fontSize:11,color:'#b09080',lineHeight:1.6}}>{lvDef?.desc}</div>
@@ -1959,33 +1960,33 @@ function GodChoiceModal({godCard,player,onWorship,onKeepHand,onDiscard,isConvert
   const canUpgrade=alreadyWorship&&(player.godLevel||0)<3;
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(2,0,8,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,flexDirection:'column',gap:16}}>
-      <div style={{fontFamily:"'Cinzel',serif",color:'#c8a96e',fontSize:13,letterSpacing:2,marginBottom:4}}>
+      <div style={{fontFamily:"'Cinzel',serif",color:'#e8cc88',fontSize:19.5,letterSpacing:2,marginBottom:4}}>
         {forcedConvert?'邪祀者强制改信——':'邪神降临——'}
-        <span style={{color:def.col}}>{godCard.name}</span>
+        <span style={{color:def.col,filter:`drop-shadow(0 0 6px ${def.col}88)`}}>{godCard.name}</span>
       </div>
-      <div style={{fontSize:11,color:'#7a5030',fontStyle:'italic',fontFamily:"'IM Fell English',serif",marginBottom:4}}>
+      <div style={{fontSize:16.5,color:'#c89058',fontStyle:'italic',fontFamily:"'IM Fell English',serif",marginBottom:4}}>
         {'💀'.repeat(player.godEncounters)} 第{player.godEncounters}次遭遇，失去{player.godEncounters}SAN
-        {isConvert&&!forcedConvert&&<span style={{color:'#aa6060',marginLeft:8}}>（改信将失去1SAN）</span>}
+        {isConvert&&!forcedConvert&&<span style={{color:'#e08888',marginLeft:8}}>（改信将失去1SAN）</span>}
       </div>
       <GodCardDisplay card={godCard} level={alreadyWorship?(player.godLevel+1):1}/>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center',marginTop:8}}>
         {!forcedConvert&&(
-          <button onClick={onWorship} style={{padding:'9px 22px',background:def.bgCol,border:`1.5px solid ${def.col}`,color:def.col,fontFamily:"'Cinzel',serif",fontSize:11,borderRadius:3,cursor:'pointer',letterSpacing:1}}>
+          <button onClick={onWorship} style={{padding:'9px 22px',background:def.bgCol,border:`1.5px solid ${def.col}`,color:def.col,fontFamily:"'Cinzel',serif",fontSize:16.5,borderRadius:3,cursor:'pointer',letterSpacing:1,filter:`drop-shadow(0 0 4px ${def.col}66)`}}>
             {canUpgrade?'⬆ 升级邪神之力':isConvert?'⛧ 改信新神':'⛧ 信仰邪神'}
           </button>
         )}
         {!alreadyWorship&&!forcedConvert&&isCultist&&(
-          <button onClick={onKeepHand} style={{padding:'9px 22px',background:'#180830',border:`1.5px solid #9060cc`,color:'#9060cc',fontFamily:"'Cinzel',serif",fontSize:11,borderRadius:3,cursor:'pointer',letterSpacing:1}}>
+          <button onClick={onKeepHand} style={{padding:'9px 22px',background:'#180830',border:`1.5px solid #b080ee`,color:'#b080ee',fontFamily:"'Cinzel',serif",fontSize:16.5,borderRadius:3,cursor:'pointer',letterSpacing:1,filter:'drop-shadow(0 0 4px #9060cc66)'}}>
             ☽ 秘密收入手牌
           </button>
         )}
         {!forcedConvert&&(
-          <button onClick={onDiscard} style={{padding:'9px 22px',background:'#120a08',border:'1.5px solid #3a2510',color:'#5a4020',fontFamily:"'Cinzel',serif",fontSize:11,borderRadius:3,cursor:'pointer',letterSpacing:1}}>
+          <button onClick={onDiscard} style={{padding:'9px 22px',background:'#120a08',border:'1.5px solid #6a4828',color:'#d4a858',fontFamily:"'Cinzel',serif",fontSize:16.5,borderRadius:3,cursor:'pointer',letterSpacing:1}}>
             放弃
           </button>
         )}
         {forcedConvert&&(
-          <button onClick={onWorship} style={{padding:'9px 22px',background:def.bgCol,border:`1.5px solid ${def.col}`,color:def.col,fontFamily:"'Cinzel',serif",fontSize:11,borderRadius:3,cursor:'pointer',letterSpacing:1}}>
+          <button onClick={onWorship} style={{padding:'9px 22px',background:def.bgCol,border:`1.5px solid ${def.col}`,color:def.col,fontFamily:"'Cinzel',serif",fontSize:16.5,borderRadius:3,cursor:'pointer',letterSpacing:1,filter:`drop-shadow(0 0 4px ${def.col}66)`}}>
             ⛧ 接受改信
           </button>
         )}
@@ -2035,23 +2036,23 @@ function DrawRevealModal({drawReveal,onConfirm}){
         borderRadius:4,padding:'28px 34px',maxWidth:320,width:'92%',textAlign:'center',
         animation:'animPop 0.22s ease-out',
       }}>
-        <div style={{fontFamily:"'Cinzel',serif",color:'#5a4020',fontSize:10,letterSpacing:3,marginBottom:16,textTransform:'uppercase'}}>── 命运降临 ──</div>
+        <div style={{fontFamily:"'Cinzel',serif",color:'#a07838',fontSize:15,letterSpacing:3,marginBottom:16,textTransform:'uppercase'}}>── 命运降临 ──</div>
         {/* Big card */}
         <div style={{
           background:s.bg,border:`2px solid ${s.borderBright}`,
           borderRadius:4,padding:'18px 22px',display:'inline-flex',flexDirection:'column',alignItems:'center',
           minWidth:120,marginBottom:16,boxShadow:`0 0 30px ${s.glow}55`,
         }}>
-          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:s.text,fontSize:34,lineHeight:1}}>{card.key}</div>
-          <div style={{fontFamily:"'Cinzel',serif",color:'#c8a96e',fontSize:13,fontWeight:600,marginTop:6}}>{card.name}</div>
-          <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#7a6040',fontSize:11,marginTop:8,lineHeight:1.4,maxWidth:140}}>{card.desc}</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:s.text,fontSize:51,lineHeight:1}}>{card.key}</div>
+          <div style={{fontFamily:"'Cinzel',serif",color:'#e8cc88',fontSize:19.5,fontWeight:600,marginTop:6}}>{card.name}</div>
+          <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#d4b468',fontSize:16.5,marginTop:8,lineHeight:1.4,maxWidth:200}}>{card.desc}</div>
         </div>
         {/* Effect results */}
         {msgs.length>0&&(
           <div style={{background:'#0c0800',border:'1px solid #2a1a08',borderRadius:2,padding:'8px 14px',marginBottom:16,textAlign:'left'}}>
-            <div style={{fontFamily:"'Cinzel',serif",color:'#3a2510',fontSize:9,letterSpacing:2,marginBottom:6,textTransform:'uppercase'}}>效果结算</div>
+            <div style={{fontFamily:"'Cinzel',serif",color:'#a07838',fontSize:13.5,letterSpacing:2,marginBottom:6,textTransform:'uppercase'}}>效果结算</div>
             {msgs.map((m,i)=>(
-              <div key={i} style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',fontSize:12,color:'#c8a96e',lineHeight:1.7,opacity:0.85}}>{m}</div>
+              <div key={i} style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',fontSize:18,color:'#e8cc88',lineHeight:1.7}}>{m}</div>
             ))}
           </div>
         )}
@@ -2060,7 +2061,7 @@ function DrawRevealModal({drawReveal,onConfirm}){
           background:'#1c1008',
           border:'1.5px solid #7a5020',
           color:'#c8a96e',
-          fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:13,
+          fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:19.5,
           borderRadius:2,cursor:'pointer',letterSpacing:2,
           boxShadow:'0 0 16px #7a502044',
           textTransform:'uppercase',
@@ -2107,19 +2108,19 @@ function TargetSelectOverlay({drawReveal,phase}){
                 background:s.bg,border:`1.5px solid ${s.borderBright}`,borderRadius:3,
                 padding:'5px 9px',minWidth:48,textAlign:'center',
               }}>
-                <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:s.text,fontSize:18,lineHeight:1}}>{card.key}</div>
-                <div style={{fontFamily:"'Cinzel',serif",color:'#c8a96e',fontSize:9.5,marginTop:2}}>{card.name}</div>
+                <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:s.text,fontSize:27,lineHeight:1}}>{card.key}</div>
+                <div style={{fontFamily:"'Cinzel',serif",color:'#e8cc88',fontSize:14.25,marginTop:2}}>{card.name}</div>
               </div>
               <div style={{textAlign:'left'}}>
-                <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#7a6040',fontSize:10,maxWidth:160,lineHeight:1.4}}>{card.desc}</div>
+                <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#d4b468',fontSize:15,maxWidth:180,lineHeight:1.4}}>{card.desc}</div>
               </div>
             </div>
           )}
           <div style={{
-            fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:12,
-            color:'#c8a96e',letterSpacing:2,textTransform:'uppercase',
+            fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:18,
+            color:'#e8cc88',letterSpacing:2,textTransform:'uppercase',
           }}>{phaseHint}</div>
-          <div style={{fontFamily:"'Cinzel',serif",color:'#5a4020',fontSize:9,letterSpacing:1,marginTop:6}}>↑ 点击上方高亮角色</div>
+          <div style={{fontFamily:"'Cinzel',serif",color:'#c8a055',fontSize:13.5,letterSpacing:1,marginTop:6}}>↑ 点击上方高亮角色</div>
         </div>
       </div>
     </>
@@ -2210,12 +2211,12 @@ function PileDisplay({deckCount,discardCount,discardTop,compact,deckRef}){
       {/* Deck — top-right corner */}
       <div ref={deckRef} style={{position:'absolute',top:4,right:8,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
         <DeckPile count={deckCount}/>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:8,color:'#3a2510',letterSpacing:1,textAlign:'center'}}>牌堆:{deckCount}张</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:8,color:'#7a5a2a',letterSpacing:1,textAlign:'center'}}>牌堆:{deckCount}张</div>
       </div>
       {/* Discard — center */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
         <DiscardPile count={discardCount} topCard={discardTop}/>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:8,color:'#3a2510',letterSpacing:1,textAlign:'center'}}>弃牌堆:{discardCount}张</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:8,color:'#7a5a2a',letterSpacing:1,textAlign:'center'}}>弃牌堆:{discardCount}张</div>
       </div>
     </div>
   );
@@ -2233,7 +2234,7 @@ function AboutModal({onClose}){
         fontFamily:"'IM Fell English','Georgia',serif",position:'relative',overflow:'hidden',
       }}>
         {/* Close */}
-        <button onClick={onClose} style={{position:'absolute',top:8,right:10,background:'none',border:'none',color:'#7a5020',fontSize:16,cursor:'pointer',lineHeight:1}}>✕</button>
+        <button onClick={onClose} style={{position:'absolute',top:8,right:10,background:'none',border:'none',color:'#b07828',fontSize:16,cursor:'pointer',lineHeight:1}}>✕</button>
         {/* Top half */}
         <div style={{display:'flex',gap:16,alignItems:'flex-start',padding:'22px 20px 16px'}}>
           {/* Avatar */}
@@ -2243,13 +2244,13 @@ function AboutModal({onClose}){
               background:'linear-gradient(135deg,#2a1a08,#1a0f04)',
               border:'2px solid #5a3a10',
               display:'flex',alignItems:'center',justifyContent:'center',
-              fontSize:26,color:'#7a5020',
+              fontSize:26,color:'#b07828',
             }}>🧙</div>
             <div style={{fontFamily:"'Cinzel',serif",fontSize:11,color:'#c8a96e',letterSpacing:1}}>Sam</div>
           </div>
           {/* Bio */}
           <div style={{flex:1,paddingTop:4}}>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#7a5020',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>— 关于作者 —</div>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#b07828',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>— 关于作者 —</div>
             <div style={{color:'#c8a96e',fontSize:12,lineHeight:1.9,fontStyle:'italic'}}>
               猫奴，上班党，不回就是在上班，会尽量努力更新。
             </div>
@@ -2259,13 +2260,8 @@ function AboutModal({onClose}){
         <div style={{width:'80%',height:1,background:'linear-gradient(90deg,transparent,#5a3a10,transparent)',margin:'0 auto'}}/>
         {/* Bottom half */}
         <div style={{padding:'16px 20px 22px',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#7a5020',letterSpacing:2,textTransform:'uppercase'}}>— 意见与反馈 —</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#b07828',letterSpacing:2,textTransform:'uppercase'}}>— 意见与反馈 —</div>
           <div style={{color:'#c8a96e',fontSize:12,letterSpacing:1}}>QQ催更群：787317460</div>
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-            <div style={{color:'#7a5020',fontSize:10,fontFamily:"'Cinzel',serif",letterSpacing:1}}>微信催更群</div>
-            <img src={QR_IMG} alt="微信群二维码" style={{width:160,height:'auto',borderRadius:4,border:'1px solid #3a2510',display:'block'}}/>
-
-          </div>
         </div>
       </div>
     </div>
@@ -2282,8 +2278,8 @@ function RoadmapModal({onClose}){
         boxShadow:'0 0 40px #00000099',
         fontFamily:"'IM Fell English','Georgia',serif",position:'relative',
       }}>
-        <button onClick={onClose} style={{position:'absolute',top:8,right:10,background:'none',border:'none',color:'#7a5020',fontSize:16,cursor:'pointer',lineHeight:1}}>✕</button>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:11,color:'#7a5020',letterSpacing:2,textTransform:'uppercase',marginBottom:16,textAlign:'center'}}>— 版本更新计划 —</div>
+        <button onClick={onClose} style={{position:'absolute',top:8,right:10,background:'none',border:'none',color:'#b07828',fontSize:16,cursor:'pointer',lineHeight:1}}>✕</button>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:11,color:'#b07828',letterSpacing:2,textTransform:'uppercase',marginBottom:16,textAlign:'center'}}>— 版本更新计划 —</div>
         {/* Current version */}
         <div style={{marginBottom:12}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:11,color:'#c8a96e',letterSpacing:1,marginBottom:4}}>当前版本：Beta 0.0.1</div>
@@ -2297,7 +2293,7 @@ function RoadmapModal({onClose}){
             '可能会开始为联机对战搭建基础框架',
           ].map((t,i)=>(
             <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:7}}>
-              <span style={{color:'#7a5020',flexShrink:0}}>·</span>
+              <span style={{color:'#b07828',flexShrink:0}}>·</span>
               <span style={{color:'#a08060',fontSize:12,lineHeight:1.7,fontStyle:'italic'}}>{t}</span>
             </div>
           ))}
@@ -2332,6 +2328,35 @@ function NarratorAvatar({tooltipW}){
   );
 }
 
+// Persistent gamma / brightness slider — top-right corner
+function GammaSlider({gamma,onChange}){
+  const [open,setOpen]=useState(false);
+  return(
+    <div style={{position:'fixed',top:10,right:12,zIndex:1800,display:'flex',alignItems:'center',gap:6}}>
+      {open&&(
+        <div style={{display:'flex',alignItems:'center',gap:8,background:'#120d06cc',border:'1px solid #3a2510',borderRadius:3,padding:'4px 10px',backdropFilter:'blur(4px)'}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:9,color:'#b07828',letterSpacing:1,whiteSpace:'nowrap'}}>亮度</span>
+          <input
+            type="range" min={0.5} max={2} step={0.05}
+            value={gamma}
+            onChange={e=>onChange(parseFloat(e.target.value))}
+            style={{width:90,accentColor:'#b07828',cursor:'pointer'}}
+          />
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:9,color:'#b07828',width:28,textAlign:'right'}}>{Math.round((gamma-1)*100>0?'+':''+(gamma-1)*100)}%</span>
+          <button onClick={()=>onChange(1)} style={{background:'none',border:'none',color:'#7a5020',fontSize:9,cursor:'pointer',padding:'0 2px',fontFamily:"'Cinzel',serif"}}>重置</button>
+        </div>
+      )}
+      <button
+        onClick={()=>setOpen(o=>!o)}
+        title="亮度调节"
+        style={{width:26,height:26,borderRadius:'50%',background:'#120d06cc',border:'1px solid #3a2510',color:'#b07828',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)',boxShadow:'0 2px 8px #00000066',transition:'border-color .2s'}}
+        onMouseEnter={e=>e.currentTarget.style.borderColor='#7a5020'}
+        onMouseLeave={e=>e.currentTarget.style.borderColor='#3a2510'}
+      >☀</button>
+    </div>
+  );
+}
+
 export default function Game(){
   const[gs,setGs]=useState(null);
   const[modal,setModal]=useState(null); // 'about' | 'roadmap' | null
@@ -2354,7 +2379,109 @@ export default function Game(){
   const readTutorialDone=()=>isArtifact?false:safeLS.get(TUTORIAL_KEY)==='1';
   const [tutorialDone,setTutorialDone]=useState(readTutorialDone);
   const [showTutorial,setShowTutorial]=useState(false);
-  const [tutorialStep,setTutorialStep]=useState(1); // 1=greeting,2=HP,3=SAN,4=SAN-zero,5=role,6=寻宝者desc,7=hand,8=追猎者desc,9=追猎者win,10=邪祀者desc,11=邪祀者win,12=牌堆,13=邪神,14=尾声,15=手牌上限,16=完成
+  const [tutorialStep,setTutorialStep]=useState(1);
+
+  // ── Multiplayer ───────────────────────────────────────────────
+  // ⚠ Change SERVER_URL to your backend address before deploying
+  const SERVER_URL = 'http://localhost:3001';
+  const [playerUUID,setPlayerUUID]=useState(()=>safeLS.get('cthulhu_player_uuid')||null);
+  const [multiLoading,setMultiLoading]=useState(false);
+  const [toasts,setToasts]=useState([]);
+  const [roomModal,setRoomModal]=useState(null);
+  const [connErrModal,setConnErrModal]=useState(false);
+  const socketRef=useRef(null);
+  const connTimeoutRef=useRef(null);
+
+  // ── Gamma / brightness ────────────────────────────────────────
+  const [gamma,setGamma]=useState(()=>{
+    try{const v=parseFloat(localStorage.getItem('cthulhu_gamma'));return isNaN(v)?1:Math.max(0.5,Math.min(2,v));}catch{return 1;}
+  });
+  function handleGamma(v){
+    setGamma(v);
+    try{localStorage.setItem('cthulhu_gamma',String(v));}catch{}
+  }
+  // CSS filter applied to root div: gamma approximated via brightness+contrast
+  const gammaFilter=gamma===1?undefined:`brightness(${gamma.toFixed(2)}) contrast(${(1+(gamma-1)*0.3).toFixed(2)})`;
+
+  function addToast(text){
+    const id=Date.now()+Math.random();
+    setToasts(prev=>[...prev,{id,text}]);
+    setTimeout(()=>setToasts(prev=>prev.filter(t=>t.id!==id)),4500);
+  }
+
+  // Dynamically load socket.io-client from CDN (skipped in Artifact environment)
+  function loadSocketIO(){
+    return new Promise((resolve,reject)=>{
+      if(window.io){resolve(window.io);return;}
+      const s=document.createElement('script');
+      s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';
+      s.onload=()=>resolve(window.io);
+      s.onerror=()=>reject(new Error('socket.io-client 加载失败'));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function handleMultiplayer(){
+    if(isArtifact){
+      addToast('联机功能在预览环境中不可用，请部署到服务器后使用');
+      return;
+    }
+    if(multiLoading)return;
+    setMultiLoading(true);
+    if(socketRef.current){socketRef.current.disconnect();socketRef.current=null;}
+    if(connTimeoutRef.current){clearTimeout(connTimeoutRef.current);connTimeoutRef.current=null;}
+
+    // 5-second timeout
+    connTimeoutRef.current=setTimeout(()=>{
+      if(socketRef.current){socketRef.current.disconnect();socketRef.current=null;}
+      setMultiLoading(false);
+      setConnErrModal(true);
+    },5000);
+
+    let ioFn;
+    try{ ioFn=await loadSocketIO(); }
+    catch(e){
+      clearTimeout(connTimeoutRef.current);
+      setMultiLoading(false);
+      addToast('网络加载失败，请检查连接后重试');
+      return;
+    }
+    const socket=ioFn(SERVER_URL,{transports:['websocket'],reconnection:false});
+    socketRef.current=socket;
+
+    function cleanup(){clearTimeout(connTimeoutRef.current);connTimeoutRef.current=null;}
+
+    socket.on('connect',()=>{
+      socket.emit('createRoom',{uuid:playerUUID});
+    });
+    socket.on('connect_error',()=>{
+      cleanup();
+      setMultiLoading(false);
+      setConnErrModal(true);
+      socket.disconnect();
+    });
+    socket.on('uuidAssigned',({uuid})=>{
+      setPlayerUUID(uuid);
+      safeLS.set('cthulhu_player_uuid',uuid);
+      addToast(`系统自动为您创建UUID：${uuid}`);
+    });
+    socket.on('roomCreated',({roomId,players})=>{
+      cleanup();
+      setMultiLoading(false);
+      addToast(`创建成功！房间号：${roomId}`);
+      setRoomModal({roomId,players});
+    });
+    socket.on('serverError',(msg)=>{
+      cleanup();
+      setMultiLoading(false);
+      addToast(`错误：${msg}`);
+    });
+  }
+
+  function closeRoomModal(){
+    setRoomModal(null);
+    if(socketRef.current){socketRef.current.disconnect();socketRef.current=null;}
+  }
   const selfPanelRef=useRef(null);
   const [panelRect,setPanelRect]=useState(null);
   const roleTextRef=useRef(null);
@@ -2619,7 +2746,7 @@ export default function Game(){
   // ── Start Screen ───────────────────────────────────────────
   if(!gs){
     return(
-      <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative',overflow:'hidden'}}>
+      <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative',overflow:'hidden',filter:gammaFilter}}>
         {/* Vignette */}
         <div style={{position:'fixed',inset:0,background:'radial-gradient(ellipse at center,transparent 30%,#000000bb 100%)',pointerEvents:'none'}}/>
         {/* Animation overlay — visible even before game starts (first-turn card flip) */}
@@ -2627,9 +2754,9 @@ export default function Game(){
         <div style={{position:'relative',zIndex:1}}>
           <h1 style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:34,fontWeight:700,letterSpacing:3,marginBottom:4,color:'#e8c87a',textShadow:'0 0 40px #c8a96e44,0 2px 0 #0a0705'}}>邪神的宝藏</h1>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:13,letterSpacing:3,color:'#c8a96e',marginBottom:4,opacity:0.85}}>克苏鲁卡牌对战</div>
-          <div style={{fontSize:10,letterSpacing:5,color:'#5a4020',fontFamily:"'Cinzel',serif",marginBottom:10,textTransform:'uppercase',opacity:0.7}}>Treasures of Evils</div>
+          <div style={{fontSize:10,letterSpacing:5,color:'#a07838',fontFamily:"'Cinzel',serif",marginBottom:10,textTransform:'uppercase',opacity:0.7}}>Treasures of Evils</div>
           <div style={{width:200,height:1,background:'linear-gradient(90deg,transparent,#5a4020,transparent)',margin:'0 auto 28px'}}/>
-          <p style={{color:'#7a6040',maxWidth:380,marginBottom:32,lineHeight:1.9,fontSize:14,fontStyle:'italic'}}>
+          <p style={{color:'#b89858',maxWidth:380,marginBottom:32,lineHeight:1.9,fontSize:14,fontStyle:'italic'}}>
             "古神沉眠之时，旅者聚于此地。寻宝者寻觅遗物，追猎者猎杀异类，邪祀者企图唤醒邪神。各怀秘密，命运共织。"
           </p>
           {/* Role cards */}
@@ -2638,13 +2765,13 @@ export default function Game(){
               <div key={role} style={{background:'#140f08',border:`1.5px solid ${r.dim}`,borderRadius:3,padding:'16px 12px',textAlign:'center',boxShadow:`0 0 20px ${r.dim}33`}}>
                 <div style={{fontSize:22,marginBottom:6,color:r.col,textShadow:`0 0 12px ${r.col}`}}>{r.icon}</div>
                 <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:r.col,fontSize:12,letterSpacing:2,marginBottom:8}}>{role}</div>
-                <div style={{color:'#5a4020',fontSize:11,lineHeight:1.6,fontStyle:'italic'}}>{r.goal}</div>
+                <div style={{color:'#a07838',fontSize:11,lineHeight:1.6,fontStyle:'italic'}}>{r.goal}</div>
               </div>
             ))}
           </div>
           {/* Rules */}
           <div style={{background:'#140f08',border:'1.5px solid #2a1a08',borderRadius:3,padding:'16px 22px',maxWidth:420,width:'100%',margin:'0 auto 32px',textAlign:'left'}}>
-            <div style={{fontFamily:"'Cinzel',serif",color:'#7a5020',fontSize:10,letterSpacing:3,marginBottom:10,textTransform:'uppercase'}}>— 规则要点 —</div>
+            <div style={{fontFamily:"'Cinzel',serif",color:'#b07828',fontSize:10,letterSpacing:3,marginBottom:10,textTransform:'uppercase'}}>— 规则要点 —</div>
             {[
               '游戏身份随机分配',
               '每人初始 HP / SAN 各 10，上限 10',
@@ -2656,33 +2783,63 @@ export default function Game(){
               '手牌上限 4 张，超出须在回合结束前弃牌',
             ].map((t,i)=>(
               <div key={i} style={{display:'flex',gap:8,marginBottom:6,alignItems:'flex-start'}}>
-                <span style={{color:'#5a4020',fontSize:9,marginTop:2}}>✦</span>
+                <span style={{color:'#a07838',fontSize:9,marginTop:2}}>✦</span>
                 <span style={{color:'#c8a96e',fontSize:12,lineHeight:1.7,fontStyle:'italic'}}>{t}</span>
               </div>
             ))}
           </div>
-          <button onClick={startNewGame} style={{
-            padding:'13px 52px',
-            background:'#1c1008',
-            border:'2px solid #7a5020',
-            color:'#c8a96e',
-            fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:15,
-            borderRadius:2,cursor:'pointer',letterSpacing:3,
-            boxShadow:'0 0 30px #7a502044',
-            textTransform:'uppercase',
-            transition:'all .2s',
-          }}>踏入黑暗</button>
+          {/* ── Main action buttons ── */}
+          <div style={{display:'flex',gap:12,justifyContent:'center',alignItems:'center',flexWrap:'wrap'}}>
+            <button onClick={startNewGame} style={{
+              padding:'13px 52px',
+              background:'#1c1008',
+              border:'2px solid #7a5020',
+              color:'#c8a96e',
+              fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:15,
+              borderRadius:2,cursor:'pointer',letterSpacing:3,
+              boxShadow:'0 0 30px #7a502044',
+              textTransform:'uppercase',
+              transition:'all .2s',
+            }}>踏入黑暗</button>
+            <button
+              onClick={handleMultiplayer}
+              disabled={multiLoading}
+              style={{
+                padding:'13px 36px',
+                background: multiLoading?'#180e08':'#0e0a14',
+                border:'2px solid #5a3a80',
+                color: multiLoading?'#5a4070':'#a080d0',
+                fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:15,
+                borderRadius:2,cursor:multiLoading?'not-allowed':'pointer',letterSpacing:3,
+                boxShadow:'0 0 30px #5a3a8033',
+                textTransform:'uppercase',
+                transition:'all .2s',
+                display:'flex',alignItems:'center',gap:8,
+              }}
+            >
+              {multiLoading&&(
+                <span style={{
+                  display:'inline-block',width:14,height:14,
+                  border:'2px solid #5a3a80',borderTopColor:'#a080d0',
+                  borderRadius:'50%',
+                  animation:'spinLoader 0.7s linear infinite',
+                  flexShrink:0,
+                }}/>
+              )}
+              联机对战
+            </button>
+          </div>
           {/* Bottom row: about + roadmap */}
           <div style={{display:'flex',justifyContent:'space-between',width:'100%',maxWidth:420,margin:'28px auto 0',gap:12}}>
             <button onClick={()=>setModal('about')} style={{
               flex:1,padding:'8px 10px',background:'transparent',
-              border:'1px solid #3a2510',color:'#5a4020',
+              border:'1px solid #3a2510',color:'#a07838',
               fontFamily:"'Cinzel',serif",fontSize:10,borderRadius:2,
               cursor:'pointer',letterSpacing:0.5,transition:'all .15s',
             }}>关于作者 & 意见与反馈</button>
             <button onClick={()=>setModal('roadmap')} style={{
               flex:1,padding:'8px 10px',background:'transparent',
-              border:'1px solid #3a2510',color:'#5a4020',
+              border:'1px solid #3a2510',color:'#a07838',
               fontFamily:"'Cinzel',serif",fontSize:10,borderRadius:2,
               cursor:'pointer',letterSpacing:0.5,transition:'all .15s',
             }}>版本更新计划</button>
@@ -2690,6 +2847,66 @@ export default function Game(){
         </div>
         {modal==='about'&&<AboutModal onClose={()=>setModal(null)}/>}
         {modal==='roadmap'&&<RoadmapModal onClose={()=>setModal(null)}/>}
+        {/* ── Toast notifications ── */}
+        <div style={{position:'fixed',top:20,left:'50%',transform:'translateX(-50%)',zIndex:2000,display:'flex',flexDirection:'column',gap:8,alignItems:'center',pointerEvents:'none'}}>
+          {toasts.map(t=>(
+            <div key={t.id} style={{
+              background:'#1a1028',border:'1.5px solid #7a50b0',borderRadius:4,
+              color:'#c8a0e8',fontFamily:"'Cinzel',serif",fontSize:11,letterSpacing:0.5,
+              padding:'10px 20px',boxShadow:'0 4px 24px #00000088',
+              animation:'toastIn 0.3s ease-out',
+              maxWidth:'calc(100vw - 32px)',textAlign:'center',
+            }}>{t.text}</div>
+          ))}
+        </div>
+        {/* ── Room Modal ── */}
+        {roomModal&&(
+          <div style={{position:'fixed',inset:0,background:'#000000cc',zIndex:1500,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={closeRoomModal}>
+            <div onClick={e=>e.stopPropagation()} style={{
+              background:'#0e0a14',border:'2px solid #7a50b0',borderRadius:6,
+              padding:'32px 36px',maxWidth:420,width:'90%',
+              boxShadow:'0 0 60px #5a3a8066',animation:'animPop 0.25s ease-out',
+              position:'relative',
+            }}>
+              {/* Close button */}
+              <button onClick={closeRoomModal} style={{
+                position:'absolute',top:12,right:14,background:'none',border:'none',
+                color:'#5a4070',fontSize:18,cursor:'pointer',lineHeight:1,padding:'2px 6px',
+              }}>✕</button>
+              <div style={{textAlign:'center',marginBottom:24}}>
+                <div style={{fontSize:28,marginBottom:10,filter:'drop-shadow(0 0 12px #a080d088)'}}>🔮</div>
+                <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:16,color:'#c8a0e8',letterSpacing:2,marginBottom:6}}>联机房间</div>
+                <div style={{width:120,height:1,background:'linear-gradient(90deg,transparent,#7a50b0,transparent)',margin:'0 auto'}}/>
+              </div>
+              {/* Room number */}
+              <div style={{background:'#160d22',border:'1px solid #5a3a80',borderRadius:4,padding:'16px',textAlign:'center',marginBottom:20}}>
+                <div style={{fontFamily:"'Cinzel',serif",color:'#8060a0',fontSize:10,letterSpacing:3,marginBottom:8,textTransform:'uppercase'}}>— 房间号 —</div>
+                <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:28,color:'#e0c0f8',letterSpacing:6,textShadow:'0 0 20px #a080d066'}}>{roomModal.roomId}</div>
+                <div style={{color:'#6a5080',fontSize:10,marginTop:8,fontStyle:'italic'}}>将此房间号分享给其他玩家</div>
+              </div>
+              {/* Players list */}
+              <div style={{marginBottom:24}}>
+                <div style={{fontFamily:"'Cinzel',serif",color:'#6a5080',fontSize:9,letterSpacing:3,marginBottom:10,textTransform:'uppercase'}}>— 当前玩家 —</div>
+                {roomModal.players.map((uuid,i)=>(
+                  <div key={uuid} style={{
+                    display:'flex',alignItems:'center',gap:8,
+                    padding:'8px 12px',marginBottom:6,
+                    background:'#1a1028',border:'1px solid #3a2560',borderRadius:3,
+                  }}>
+                    <span style={{color:'#a080d0',fontSize:12}}>👤</span>
+                    <span style={{fontFamily:"'Cinzel',serif",fontSize:9,color:'#c8a0e8',letterSpacing:0.5}}>{uuid}</span>
+                    {uuid===playerUUID&&<span style={{marginLeft:'auto',color:'#7060a0',fontSize:9,fontStyle:'italic'}}>（你）</span>}
+                  </div>
+                ))}
+              </div>
+              {/* Waiting indicator */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,color:'#6a5080',fontSize:11,fontStyle:'italic',fontFamily:"'IM Fell English','Georgia',serif"}}>
+                <span style={{display:'inline-block',width:10,height:10,border:'1.5px solid #5a3a80',borderTopColor:'#a080d0',borderRadius:'50%',animation:'spinLoader 0.9s linear infinite'}}/>
+                等待其他玩家加入…
+              </div>
+            </div>
+          </div>
+        )}
         {/* ── Tutorial overlay ── */}
         {showTutorial&&(
           <div style={{position:'fixed',inset:0,background:'#000000cc',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -2706,7 +2923,7 @@ export default function Game(){
                 <div style={{display:'flex',flexDirection:'column',gap:10}}>
                   <button
                     onClick={completeTutorial}
-                    style={{padding:'9px 24px',background:'transparent',border:'1.5px solid #3a2510',color:'#7a6040',fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:11,borderRadius:2,cursor:'pointer',letterSpacing:1.5,textTransform:'uppercase',transition:'all .2s'}}
+                    style={{padding:'9px 24px',background:'transparent',border:'1.5px solid #3a2510',color:'#b89858',fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:11,borderRadius:2,cursor:'pointer',letterSpacing:1.5,textTransform:'uppercase',transition:'all .2s'}}
                     onMouseEnter={e=>{e.currentTarget.style.borderColor='#7a5020';e.currentTarget.style.color='#c8a96e';}}
                     onMouseLeave={e=>{e.currentTarget.style.borderColor='#3a2510';e.currentTarget.style.color='#7a6040';}}
                   >
@@ -2726,6 +2943,20 @@ export default function Game(){
           </div>
         )}
         {roleRevealAnim&&<RoleRevealAnim role={roleRevealAnim.role} onDone={()=>_onRoleRevealDone(roleRevealAnim.pendingGs)}/>}
+        {/* ── Gamma slider (top-right corner, persistent) ── */}
+        <GammaSlider gamma={gamma} onChange={handleGamma}/>
+        {/* ── Connection error modal ── */}
+        {connErrModal&&(
+          <div onClick={()=>setConnErrModal(false)} style={{position:'fixed',inset:0,background:'#000000bb',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#0e0a14',border:'2px solid #5a3a80',borderRadius:6,padding:'32px 36px',maxWidth:360,width:'90%',textAlign:'center',boxShadow:'0 0 60px #5a3a8066',animation:'animPop 0.25s ease-out',cursor:'default'}}>
+              <div style={{fontSize:28,marginBottom:12}}>🔌</div>
+              <p style={{color:'#c8a0e8',fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',fontSize:14,lineHeight:1.9,marginBottom:24}}>
+                无法连接服务器，<br/>先试试单人玩法吧
+              </p>
+              <div style={{color:'#5a4070',fontSize:10,fontFamily:"'Cinzel',serif",letterSpacing:1}}>点击任意位置关闭</div>
+            </div>
+          </div>
+        )}
         <style>{GLOBAL_STYLES}</style>
       </div>
     );
@@ -2748,7 +2979,7 @@ export default function Game(){
             {isLose?'英魂殒落':iWon?'胜利归你':winner==='寻宝者'?`——  ${gs.players[winnerIdx]?.name??''}获胜  ——`:'——  '+winner+'获胜  ——'}
           </h2>
           <div style={{width:180,height:1,background:'linear-gradient(90deg,transparent,#5a4020,transparent)',margin:'0 auto 12px'}}/>
-          <p style={{color:'#7a6040',marginBottom:28,fontSize:13,fontStyle:'italic',maxWidth:340}}>{reason}</p>
+          <p style={{color:'#b89858',marginBottom:28,fontSize:13,fontStyle:'italic',maxWidth:340}}>{reason}</p>
           {/* Player results */}
           <div style={{display:'flex',gap:10,marginBottom:36,flexWrap:'wrap',justifyContent:'center'}}>
             {gs.players.map(p=>{
@@ -2758,7 +2989,7 @@ export default function Game(){
                 <div key={p.id} style={{background:isWinner?'#1a1208':'#140f08',border:`1.5px solid ${isWinner?r.col:r.dim}`,borderRadius:3,padding:'10px 14px',textAlign:'center',minWidth:76,boxShadow:isWinner?`0 0 14px ${r.col}55`:'none'}}>
                   <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:11,color:isWinner?r.col:'#c8a96e',letterSpacing:1}}>{p.name}</div>
                   <div style={{fontSize:11,color:r.col,margin:'4px 0',fontFamily:"'Cinzel',serif",letterSpacing:1}}>{r.icon} {p.role}</div>
-                  <div style={{fontSize:10,color:'#5a4020'}}>HP:{p.hp} SAN:{p.san}</div>
+                  <div style={{fontSize:10,color:'#a07838'}}>HP:{p.hp} SAN:{p.san}</div>
                   {p.isDead&&<div style={{fontSize:12,color:'#882020',marginTop:3}}>☠</div>}
                   {isWinner&&!p.isDead&&<div style={{fontSize:10,color:r.col,marginTop:3,letterSpacing:1}}>✦ 胜者</div>}
                 </div>
@@ -3262,7 +3493,7 @@ export default function Game(){
   const skillLimited=gs.skillUsed&&ri.skillLimited;
 
   return(
-    <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',gap:isMobile?5:7,padding:isMobile?'6px 8px':'8px 10px',position:'relative',overflowX:'hidden',
+    <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',gap:isMobile?5:7,padding:isMobile?'6px 8px':'8px 10px',position:'relative',overflowX:'hidden',filter:gammaFilter,
     animation:deathShake?'deathShakeAnim 2.0s ease-in-out':screenShake?'screenShakeAnim 0.38s ease-in-out':undefined,
     }}>
       {/* Global vignette */}
@@ -3334,7 +3565,7 @@ export default function Game(){
         {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:10,borderBottom:'1px solid #2a1a08',paddingBottom:6}}>
           <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:isMobile?12:14,fontWeight:700,color:'#c8a96e',letterSpacing:isMobile?1:2}}>邪神的宝藏</div>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:isMobile?8:10,color:'#7a6040',letterSpacing:isMobile?1:2,marginTop:1}}>Treasures of Evils</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:isMobile?8:10,color:'#b89858',letterSpacing:isMobile?1:2,marginTop:1}}>Treasures of Evils</div>
           
         </div>
 
@@ -3359,17 +3590,17 @@ export default function Game(){
             {/* SAN mist: rendered by full-screen SanMistOverlay */}
             {(hpHealIndices.includes(0)||sanHealIndices.includes(0))&&<HealCrossEffect color={sanHealIndices.includes(0)?'#a78bfa':'#4ade80'}/>}
             <div>
-              <div ref={roleTextRef} style={{fontFamily:"'Cinzel',serif",color:'#3a2510',fontSize:9,letterSpacing:2,marginBottom:3,textTransform:'uppercase'}}>你的身份</div>
+              <div ref={roleTextRef} style={{fontFamily:"'Cinzel',serif",color:'#7a5a2a',fontSize:9,letterSpacing:2,marginBottom:3,textTransform:'uppercase'}}>你的身份</div>
               <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:13,color:ri.col,textShadow:`0 0 12px ${ri.col}66`,letterSpacing:1}}>{ri.icon} {me.role}</div>
-              <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#5a4020',fontSize:10,marginTop:4,lineHeight:1.6}}>{ri.goal}</div>
+              <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#a07838',fontSize:10,marginTop:4,lineHeight:1.6}}>{ri.goal}</div>
               {me.isResting&&<div style={{marginTop:4,fontSize:10,color:'#4ade80',fontFamily:"'Cinzel',serif",letterSpacing:1,filter:'drop-shadow(0 0 4px #4ade80)'}}>♥ 休息中 — 下回合跳过</div>}
             {/* God zone display */}
             {(me.godEncounters||0)>0&&<div style={{marginTop:4,fontSize:10,color:'#8b6060',letterSpacing:1}}>{'💀'.repeat(Math.min(me.godEncounters,5))}{me.godEncounters>5?`×${me.godEncounters}`:''} 邪神遭遇</div>}
             {me.godName&&(me.godZone||[]).length>0&&(
-              <div style={{marginTop:4,padding:'3px 6px',background:GOD_DEFS[me.godName]?.bgCol||'#100808',border:`1px solid ${GOD_DEFS[me.godName]?.col||'#c06020'}66`,borderRadius:3}}>
-                <div style={{fontSize:9,color:GOD_DEFS[me.godName]?.col,fontFamily:"'Cinzel',serif",letterSpacing:0.5}}>{GOD_DEFS[me.godName]?.name}</div>
-                <div style={{fontSize:8,color:'#7a6060',fontFamily:"'IM Fell English',serif",fontStyle:'italic'}}>{GOD_DEFS[me.godName]?.power} Lv.{me.godLevel}</div>
-                <div style={{fontSize:8,color:'#6a5050',fontStyle:'italic',marginTop:1,lineHeight:1.4}}>{GOD_DEFS[me.godName]?.levels[(me.godLevel||1)-1]?.desc}</div>
+              <div style={{marginTop:4,padding:'3px 6px',background:GOD_DEFS[me.godName]?.bgCol||'#100808',border:`1px solid ${GOD_DEFS[me.godName]?.col||'#c06020'}88`,borderRadius:3}}>
+                <div style={{fontSize:11,color:GOD_DEFS[me.godName]?.col,fontFamily:"'Cinzel',serif",letterSpacing:0.5,fontWeight:700,textShadow:`0 0 6px ${GOD_DEFS[me.godName]?.col}66`}}>{GOD_DEFS[me.godName]?.name}</div>
+                <div style={{fontSize:10,color:'#d4b0b0',fontFamily:"'IM Fell English',serif",fontStyle:'italic'}}>{GOD_DEFS[me.godName]?.power} Lv.{me.godLevel}</div>
+                <div style={{fontSize:9.5,color:'#a07878',fontStyle:'italic',marginTop:1,lineHeight:1.4}}>{GOD_DEFS[me.godName]?.levels[(me.godLevel||1)-1]?.desc}</div>
               </div>
             )}
             </div>
@@ -3391,7 +3622,7 @@ export default function Game(){
           <PileDisplay deckCount={gs.deck.length} discardCount={gs.discard.length} discardTop={gs.discard[gs.discard.length-1]||null} compact={isMobile} deckRef={deckAreaRef}/>
           {/* Log — narrow, right-aligned */}
           <div ref={logRef} style={{width:isMobile?'100%':218,flexBasis:isMobile?'100%':undefined,flexShrink:0,background:'#0e0904',border:'1.5px solid #2a1a08',borderRadius:3,padding:'8px 10px',overflowY:'auto',maxHeight:isMobile?100:222}}>
-            <div style={{fontFamily:"'Cinzel',serif",color:'#2a1a08',fontSize:9,letterSpacing:2,marginBottom:5,textTransform:'uppercase'}}>— 冒险日志 —</div>
+            <div style={{fontFamily:"'Cinzel',serif",color:'#7a5a2a',fontSize:9,letterSpacing:2,marginBottom:5,textTransform:'uppercase'}}>— 冒险日志 —</div>
             {gs.log.slice(-50).map((line,i)=>(
               <div key={i} style={{
                 fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
@@ -3454,11 +3685,11 @@ export default function Game(){
                         textTransform:'uppercase',opacity:restLimited?0.4:1,
                       }}>
                       ♥ 休息
-                      {restLimited&&<span style={{fontSize:9,marginLeft:4,color:'#3a2510'}}>(已用)</span>}
+                      {restLimited&&<span style={{fontSize:9,marginLeft:4,color:'#7a5a2a'}}>(已用)</span>}
                     </button>
                     <button onClick={endTurn} style={{
                       padding:isMobile?'5px 10px':'6px 16px',background:'#180e08',
-                      border:'1.5px solid #3a2510',color:'#5a4020',
+                      border:'1.5px solid #3a2510',color:'#a07838',
                       fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:isMobile?10:11,
                       borderRadius:2,cursor:'pointer',letterSpacing:isMobile?0.5:1,textTransform:'uppercase',
                     }}>结束回合</button>
@@ -3515,7 +3746,7 @@ export default function Game(){
                 {canWorshipNow&&<div style={{position:'absolute',top:-7,left:'50%',transform:'translateX(-50%)',fontFamily:"'Cinzel',serif",fontSize:8,color:'#b080e0',background:'#0a0412',border:'1px solid #7040aa',borderRadius:2,padding:'1px 4px',pointerEvents:'none',whiteSpace:'nowrap',zIndex:10}}>⛧ 点击信仰</div>}
               </div>);
             })}
-            {me.hand.length===0&&<div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#2a1a08',fontSize:13,padding:'22px 10px'}}>手中空空如也</div>}
+            {me.hand.length===0&&<div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#7a5a2a',fontSize:13,padding:'22px 10px'}}>手中空空如也</div>}
           </div>
         </div>
       </div>
@@ -4110,7 +4341,7 @@ export default function Game(){
               ✦ 完成引导
             </button>
             {isArtifact&&(
-              <div style={{marginTop:14,fontSize:10,color:'#3a2510',fontFamily:"'Cinzel',serif",letterSpacing:0.5}}>
+              <div style={{marginTop:14,fontSize:10,color:'#7a5a2a',fontFamily:"'Cinzel',serif",letterSpacing:0.5}}>
                 （当前为预览环境，引导完成状态不会被保存）
               </div>
             )}
@@ -4125,17 +4356,15 @@ export default function Game(){
             gameOver:{winner:'寻宝者',reason:gs.abilityData?.winReason||'你集齐了全部编号并获胜！',winnerIdx:0}});
         }}/>
       )}
+      <GammaSlider gamma={gamma} onChange={handleGamma}/>
       <style>{GLOBAL_STYLES}</style>
     </div>
   );
 }
-
-// ══════════════════════════════════════════════════════════════
-//  STYLES
 // ══════════════════════════════════════════════════════════════
 const smallBtnStyle={
   padding:'4px 12px',background:'#180e08',
-  border:'1px solid #3a2510',color:'#5a4020',
+  border:'1px solid #3a2510',color:'#a07838',
   fontFamily:"'Cinzel',serif",fontSize:10,borderRadius:2,cursor:'pointer',letterSpacing:1,
 };
 
@@ -4175,6 +4404,8 @@ const GLOBAL_STYLES=`
   @keyframes animFadeIn  { from{opacity:0} to{opacity:1} }
   @keyframes animFadeOut { from{opacity:1} to{opacity:0} }
   @keyframes animPop     { 0%{transform:scale(0.5);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  @keyframes spinLoader  { to{transform:rotate(360deg)} }
+  @keyframes toastIn     { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
   @keyframes animShake   { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-12px)} 35%{transform:translateX(14px)} 55%{transform:translateX(-9px)} 75%{transform:translateX(9px)} }
   @keyframes animVig     { 0%,100%{opacity:0} 50%{opacity:1} }
   @keyframes animGlow    { 0%,100%{box-shadow:0 0 8px #c8a96e33} 50%{box-shadow:0 0 22px #c8a96e88} }
