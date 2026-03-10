@@ -156,16 +156,26 @@ function derotateGs(gs,myIndex){
 }
 
 function checkWin(players,isMP){
-  // 1. 邪祀者 win: any surviving player's SAN hits 0 (evil god revives)
+  const hasHunters=players.some(p=>p.role==='追猎者');
+  const hasCultists=players.some(p=>p.role==='邪祀者');
+  // 1. SAN归零：有邪祀者则邪祀者获胜；无邪祀者则全员失败（邪神复活但无人受益）
   for(const p of players)if(!p.isDead&&p.san<=0){
-    const ws=players.filter(q=>q.role==='邪祀者').map(q=>q.name).join('、');
-    return{winner:'邪祀者',reason:`${p.name} 的理智归零，邪神苏醒！邪祀者（${ws}）获胜！`};
+    if(hasCultists){
+      const ws=players.filter(q=>q.role==='邪祀者').map(q=>q.name).join('、');
+      return{winner:'邪祀者',reason:`${p.name} 的理智归零，邪神苏醒！邪祀者（${ws}）获胜！`};
+    }else{
+      return{winner:'LOSE_ALL',reason:`${p.name} 的理智归零，邪神复活，无人幸存！全员失败！`};
+    }
   }
-  // 2. 追猎者 win: all non-hunters dead — does NOT require any hunter to be alive
+  // 2. 非追猎者全灭：有追猎者则追猎者获胜；无追猎者则全员失败
   const nonHunters=players.filter(p=>p.role!=='追猎者');
   if(nonHunters.length&&nonHunters.every(p=>p.isDead)){
-    const ws=players.filter(q=>q.role==='追猎者').map(q=>q.name).join('、');
-    return{winner:'追猎者',reason:`所有非追猎者已覆灭！追猎者（${ws}）获胜！`};
+    if(hasHunters){
+      const ws=players.filter(q=>q.role==='追猎者').map(q=>q.name).join('、');
+      return{winner:'追猎者',reason:`所有非追猎者已覆灭！追猎者（${ws}）获胜！`};
+    }else{
+      return{winner:'LOSE_ALL',reason:'所有探险者均已覆灭，无人幸存！全员失败！'};
+    }
   }
   // 3. Player death — single-player only (MP games continue when a player dies)
   if(!isMP&&players[0].isDead)return{winner:'LOSE',reason:'你已沉入永恒的黑暗…'};
@@ -771,17 +781,35 @@ function FlowerBloom(){
   );
 }
 
-function CardFlipAnim({card,triggerName,exiting}){
+function CardFlipAnim({card,triggerName,targetPid,exiting}){
   if(!card) return null;
   const s=CS[card.letter]||GOD_CS;
   const isEvil=EVIL_TYPES.has(card.type)||card.isGod;
 
-  // Phase 1: card travels from deck (top-right) to centre ~700ms
+  // Phase 1: card travels from deck (top-right) toward destination panel ~650ms
   // Phase 2: full flip animation
   const [traveled,setTraveled]=React.useState(false);
   React.useEffect(()=>{const t=setTimeout(()=>setTraveled(true),650);return()=>clearTimeout(t);},[]);
 
-  // Travel phase — card back slides from deck position to centre
+  // Compute destination: target player panel centre (or screen centre for self)
+  const destStyle=React.useMemo(()=>{
+    if(targetPid>0){
+      const el=document.querySelector(`[data-pid="${targetPid}"]`);
+      if(el){
+        const r=el.getBoundingClientRect();
+        const dx=r.left+r.width/2;
+        const dy=r.top+r.height/2;
+        // Deck start position (top:8% right:6%) — calc offset
+        const srcX=window.innerWidth*0.94-35;
+        const srcY=window.innerHeight*0.08;
+        return{'--dest-x':`${dx-35}px`,'--dest-y':`${dy-47}px`,'--src-x':`${srcX}px`,'--src-y':`${srcY}px`};
+      }
+    }
+    return null; // self: use existing CSS keyframe
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]); // measure once on mount
+
+  // Travel phase — card back slides from deck position to destination panel
   if(!traveled) return(
     <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(4,4,2,0)',pointerEvents:'none'}}>
       <div style={{
@@ -790,7 +818,10 @@ function CardFlipAnim({card,triggerName,exiting}){
         background:'linear-gradient(135deg,#1e1208,#0e0804)',
         border:'1.5px solid #4a3010',
         boxShadow:'0 4px 18px rgba(0,0,0,0.7)',
-        animation:'cardTravelToDeck 0.65s cubic-bezier(0.3,0,0.2,1) forwards',
+        ...(destStyle||{}),
+        animation:destStyle
+          ?'cardTravelToPlayer 0.65s cubic-bezier(0.3,0,0.2,1) forwards'
+          :'cardTravelToDeck 0.65s cubic-bezier(0.3,0,0.2,1) forwards',
       }}>
         <div style={{position:'absolute',inset:0,borderRadius:4,
           background:'repeating-linear-gradient(45deg,#2a1a0820 0px,#2a1a0820 1px,transparent 1px,transparent 4px)'}}/>
@@ -1429,7 +1460,7 @@ function TreasureMapAnim({hand,onConfirm}){
 function AnimOverlay({anim,exiting}){
   if(!anim) return null;
   if(anim.type==='YOUR_TURN') return <YourTurnAnim name={anim.name}/>;
-  if(anim.type==='DRAW_CARD') return <CardFlipAnim card={anim.card} triggerName={anim.triggerName} exiting={exiting}/>;
+  if(anim.type==='DRAW_CARD') return <CardFlipAnim card={anim.card} triggerName={anim.triggerName} targetPid={anim.targetPid??0} exiting={exiting}/>;
   if(anim.type==='DICE_ROLL') return <DiceRollAnim anim={anim} exiting={exiting}/>;
   if(anim.type==='DISCARD') return <DiscardMoveOverlay anim={anim} exiting={exiting}/>;
   if(['HP_DAMAGE','HP_HEAL','SAN_HEAL','SAN_DAMAGE'].includes(anim.type)) return null;
@@ -1815,14 +1846,21 @@ function SanMistOverlay({hitIndices}){
     });
     setTargets(pts);
   },[(hitIndices||[]).join(',')]);
+  // 源点：使用主视角玩家面板（data-pid=0）的中心，适应任意玩家数量的布局
+  const selfSrc=React.useMemo(()=>{
+    const el=document.querySelector('[data-pid="0"]');
+    if(el){const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
+    return{x:window.innerWidth/2,y:window.innerHeight*0.7};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[targets.length]); // targets 刷新时重新测量
   if(!targets.length)return null;
   return(
     <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:490,overflow:'hidden'}}>
       {targets.map(({pi,cx,cy},boltIdx)=>{
         const ox=((pi*17+5)%22)-11;
         const oy=((pi*13+7)%16)-8;
-        const startX=window.innerWidth/2+ox;
-        const startY=window.innerHeight/2+oy;
+        const startX=selfSrc.x+ox;
+        const startY=selfSrc.y+oy;
         const txPx=cx-startX;
         const tyPx=cy-startY;
         const delay=(boltIdx*0.07).toFixed(2)+'s';
@@ -3050,7 +3088,7 @@ export default function Game(){
       // If AI is hunting player 0, pause here for player input (after draw card anim)
       if(newGs.phase==='PLAYER_REVEAL_FOR_HUNT'){
         const queue=[];
-        if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???'});
+        if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
         triggerAnimQueue(queue,newGs);
         return;
       }
@@ -3065,7 +3103,7 @@ export default function Game(){
       // 1. Banner anim: 'YOUR_TURN' equivalent for AI — shown via gs.phase=AI_TURN before queue
       //    (no explicit anim needed; the static UI banner shows when !anim)
       // 2. Draw card anim for THIS AI (card drawn at turn start, stored in gs._drawnCard)
-      if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???'});
+      if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
       // 2b. Stat changes caused by THIS AI's drawn card (draw effects: gs._playersBeforeThisDraw → gs.players)
       if(gs._playersBeforeThisDraw&&gs._drawnCard){
         const drawEffectQ=buildAnimQueue(fakeGs(gs._playersBeforeThisDraw),gs);
@@ -3167,15 +3205,17 @@ export default function Game(){
   },[roomModal?.countdown?.version]);
 
   // ── 多人游戏：回合计时器（45s）─────────────────────────────────
+  // 只在新回合开始时重置（currentTurn/gameOver/_turnKey 变化），
+  // 不监听 phase：DRAW_REVEAL / GOD_CHOICE / NYA_BORROW 均属于本回合时间内
   useEffect(()=>{
-    if(!isMultiplayer||!gs||gs.gameOver||gs.phase!=='ACTION'||gs.currentTurn!==0)return;
+    if(!isMultiplayer||!gs||gs.gameOver||gs.currentTurn!==0)return;
     setMpTurnSec(45);
     mpTurnIntervalRef.current=setInterval(()=>{
       setMpTurnSec(s=>{if(s===null||s<=1){clearInterval(mpTurnIntervalRef.current);return 0;}return s-1;});
     },1000);
     const t=setTimeout(()=>setGs(p=>p?{...p,_mpEndTurn:true}:p),45000);
     return()=>{clearTimeout(t);clearInterval(mpTurnIntervalRef.current);setMpTurnSec(null);};
-  },[isMultiplayer,gs?.phase,gs?.currentTurn,gs?._turnKey,gs?.gameOver]);
+  },[isMultiplayer,gs?.currentTurn,gs?._turnKey,gs?.gameOver]);
 
   // 执行自动结束回合（等动画结束后再执行，避免 isBlocked 时丢失）
   useEffect(()=>{
@@ -3551,17 +3591,17 @@ export default function Game(){
   if(gs.gameOver){
     const{winner,reason,winnerIdx}=gs.gameOver;
     const myRole=gs.players[0].role;
-    const iWon=winner==='LOSE'?false
+    const iWon=winner==='LOSE'||winner==='LOSE_ALL'?false
       :winner==='寻宝者'?(winnerIdx===0||(gs.gameOver.winnerIdx2??-1)===0)
       :(winner===myRole);
-    const isLose=winner==='LOSE';
+    const isLose=winner==='LOSE'||winner==='LOSE_ALL';
     return(
       <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative'}}>
         <div style={{position:'fixed',inset:0,background:'radial-gradient(ellipse at center,transparent 20%,#000000cc 100%)',pointerEvents:'none'}}/>
         <div style={{position:'relative',zIndex:1}}>
           <div style={{fontSize:72,marginBottom:14,filter:`drop-shadow(0 0 30px ${iWon?'#c8a96e':isLose?'#882020':'#9060cc'})`,animation:'animPop 0.4s ease-out'}}>{isLose?'☠':iWon?'✦':'⚔'}</div>
           <h2 style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:26,fontWeight:700,marginBottom:10,color:iWon?'#e8c87a':isLose?'#882020':'#a07090',textShadow:`0 0 30px ${iWon?'#c8a96e44':'#88202044'}`}}>
-            {isLose?'英魂殒落':iWon?'胜利归你':winner==='寻宝者'?`——  ${gs.players[winnerIdx]?.name??''}获胜  ——`:'——  '+winner+'获胜  ——'}
+{isLose?(winner==='LOSE_ALL'?'——  全员覆灭  ——':'英魂殒落'):iWon?'胜利归你':winner==='寻宝者'?`——  ${gs.players[winnerIdx]?.name??''}获胜  ——`:'——  '+winner+'获胜  ——'}
           </h2>
           <div style={{width:180,height:1,background:'linear-gradient(90deg,transparent,#5a4020,transparent)',margin:'0 auto 12px'}}/>
           <p style={{color:'#b89858',marginBottom:28,fontSize:13,fontStyle:'italic',maxWidth:340}}>{reason}</p>
@@ -3569,7 +3609,7 @@ export default function Game(){
           <div style={{display:'flex',gap:10,marginBottom:36,flexWrap:'wrap',justifyContent:'center'}}>
             {gs.players.map((p,pIdx)=>{
               const r=RINFO[p.role];
-              const isWinner=!isLose&&(winner==='寻宝者'?(pIdx===winnerIdx||pIdx===(gs.gameOver.winnerIdx2??-1)):p.role===winner);
+              const isWinner=!isLose&&winner!=='LOSE_ALL'&&(winner==='寻宝者'?(pIdx===winnerIdx||pIdx===(gs.gameOver.winnerIdx2??-1)):p.role===winner);
               return(
                 <div key={p.id} style={{background:isWinner?'#1a1208':'#140f08',border:`1.5px solid ${isWinner?r.col:r.dim}`,borderRadius:3,padding:'10px 14px',textAlign:'center',minWidth:76,boxShadow:isWinner?`0 0 14px ${r.col}55`:'none'}}>
                   <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:11,color:isWinner?r.col:'#c8a96e',letterSpacing:1}}>{p.name}</div>
@@ -3812,7 +3852,7 @@ export default function Game(){
     const newGs={...gs,players:res.P,deck:res.D,discard:res.Disc,log:L,abilityData:{},phase:'ACTION',skillUsed:true,...(win?{gameOver:win}:{})};
     triggerAnimQueue([
       {type:'SKILL_BEWITCH',msgs:L.slice(-3),targetIdx:ti},
-      {type:'DRAW_CARD',card:bewitchCard,triggerName:res.P[ti]?.name},
+      {type:'DRAW_CARD',card:bewitchCard,triggerName:res.P[ti]?.name,targetPid:ti},
       ...buildAnimQueue(gs,newGs),
     ],newGs);
   }
@@ -4360,7 +4400,7 @@ export default function Game(){
         }}>
           <div style={{flex:1,fontFamily:"'Cinzel',serif",color:phase==='PLAYER_REVEAL_FOR_HUNT'?'#cc3030':myTurn&&phase!=='AI_TURN'?'#a08040':'#3a2510',fontSize:isMobile?10:11,letterSpacing:isMobile?0.5:1}}>{phaseLabel}</div>
           {/* 多人回合计时器 */}
-          {isMultiplayer&&mpTurnSec!==null&&phase==='ACTION'&&myTurn&&(
+          {isMultiplayer&&mpTurnSec!==null&&myTurn&&phase!=='AI_TURN'&&(
             <div style={{fontFamily:"'Cinzel',serif",fontSize:11,color:mpTurnSec<=10?'#e05030':mpTurnSec<=20?'#e09030':'#608060',letterSpacing:1,flexShrink:0}}>
               ⏱ {mpTurnSec}s
             </div>
@@ -5124,6 +5164,12 @@ const GLOBAL_STYLES=`
     0%   {top:8%;right:6%;transform:scale(0.85);opacity:0.9}
     30%  {opacity:1}
     100% {top:50%;right:50%;transform:translate(50%,-50%) scale(1.1);opacity:1}
+  }
+  /* Card flies from deck (top-right) to a specific player panel */
+  @keyframes cardTravelToPlayer {
+    0%   {left:var(--src-x);top:var(--src-y);transform:translate(0,0) scale(0.85);opacity:0.9}
+    30%  {opacity:1}
+    100% {left:var(--dest-x);top:var(--dest-y);transform:translate(0,0) scale(1.0);opacity:1}
   }
   @keyframes animFadeIn  { from{opacity:0} to{opacity:1} }
   @keyframes animFadeOut { from{opacity:1} to{opacity:0} }
