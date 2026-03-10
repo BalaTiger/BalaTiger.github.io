@@ -3025,6 +3025,9 @@ export default function Game(){
     }
   },[gs]);
 
+  // isBlocked 提升到 useEffect 之前，避免依赖数组 TDZ 报错
+  const isBlocked=!!anim||showTutorial;
+
   // ── 房间倒计时显示（前端独立计时，服务端计时器版本号变化时重置）───
   useEffect(()=>{
     if(cdIntervalRef.current){clearInterval(cdIntervalRef.current);cdIntervalRef.current=null;}
@@ -3483,7 +3486,6 @@ export default function Game(){
   const canWin=effectiveRole==='寻宝者'&&isWinHand(me.hand);
   const phase=gs.phase;
   const ri=RINFO[me.role];
-  const isBlocked=!!anim||showTutorial; // block all interaction during animation or tutorial
   const suppressAnim=showTutorial&&tutorialStep>=2; // hide all anims during tutorial steps 2+
   const huntAbandoned=gs.huntAbandoned||[];
 
