@@ -284,21 +284,25 @@ function aiDrawAndApply(ci,ps,deck,disc){
 // ══════════════════════════════════════════════════════════════
 //  PLAYER DRAW
 // ══════════════════════════════════════════════════════════════
-function playerDrawCard(ps,deck,disc){
+function playerDrawCard(ps,deck,disc,ci=0){
+  // ci: index of the drawing player in ps (0 = viewer, other = MP opponent)
   let P=copyPlayers(ps),D=[...deck],Disc=[...disc];
   if(!D.length&&Disc.length){D=shuffle(Disc);Disc=[];}
   if(!D.length)return{P,D,Disc,drawnCard:null,effectMsgs:[],needTarget:false};
   const drawnCard=D.shift();
   // God card: don't apply effect yet — route to player choice UI
   if(drawnCard.isGod){
-    P[0].godEncounters=(P[0].godEncounters||0)+1;
-    const cost=P[0].godEncounters;
-    P[0].san=clamp(P[0].san-cost);
-    return{P,D,Disc,drawnCard,effectMsgs:[`你遭遇邪神 ${drawnCard.name}！（第${P[0].godEncounters}次）失去${cost}SAN`],needTarget:false,needGodChoice:true};
+    P[ci].godEncounters=(P[ci].godEncounters||0)+1;
+    const cost=P[ci].godEncounters;
+    P[ci].san=clamp(P[ci].san-cost);
+    const whoName=ci===0?'你':P[ci].name;
+    return{P,D,Disc,drawnCard,
+      effectMsgs:[`${whoName}遭遇邪神 ${drawnCard.name}！（第${P[ci].godEncounters}次）失去${cost}SAN`],
+      needTarget:false,needGodChoice:true};
   }
   if(drawnCard.needsTarget)return{P,D,Disc,drawnCard,effectMsgs:[],needTarget:true};
-  const res=applyFx(drawnCard,0,null,P,D,Disc);
-  P=res.P;D=res.D;Disc=res.Disc;P[0].hand.push(drawnCard);
+  const res=applyFx(drawnCard,ci,null,P,D,Disc);
+  P=res.P;D=res.D;Disc=res.Disc;P[ci].hand.push(drawnCard);
   return{P,D,Disc,drawnCard,effectMsgs:res.msgs,needTarget:false};
 }
 
@@ -365,7 +369,7 @@ function startNextTurn(gs){
       selectedCard:null,abilityData:{}};
   }else if(gs._isMP){
     // Multiplayer: next player is human — draw their card and enter DRAW_REVEAL
-    const res=playerDrawCard(P,D,Disc);
+    const res=playerDrawCard(P,D,Disc,next);
     P=res.P;D=res.D;Disc=res.Disc;if(res.effectMsgs.length)L.push(...res.effectMsgs);
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false};}
     if(res.needGodChoice){const win2=checkWin(P,true);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],gameOver:win2};return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null,_isMP:true};}
@@ -1835,32 +1839,13 @@ function BewitchEyeOverlay({active,cx,cy}){
 }
 
 // ── SanMistOverlay: DOM-measured targeting ──────────────────────
-function SanMistOverlay({hitIndices}){
-  const[targets,setTargets]=React.useState([]);
-  React.useLayoutEffect(()=>{
-    if(!hitIndices||!hitIndices.length){setTargets([]);return;}
-    const pts=hitIndices.map(pi=>{
-      const el=document.querySelector(`[data-pid="${pi}"]`);
-      if(el){const r=el.getBoundingClientRect();return{pi,cx:r.left+r.width/2,cy:r.top+r.height/2};}
-      return{pi,cx:window.innerWidth/2,cy:window.innerHeight*0.3};
-    });
-    setTargets(pts);
-  },[(hitIndices||[]).join(',')]);
-  // 源点：使用主视角玩家面板（data-pid=0）的中心，适应任意玩家数量的布局
-  const selfSrc=React.useMemo(()=>{
-    const el=document.querySelector('[data-pid="0"]');
-    if(el){const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
-    return{x:window.innerWidth/2,y:window.innerHeight*0.7};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[targets.length]); // targets 刷新时重新测量
-  if(!targets.length)return null;
+// SanMistOverlay accepts pre-measured positions from parent useEffect
+// (same timing pattern as SKILL_HUNT / SKILL_BEWITCH — avoids grid-layout race)
+function SanMistOverlay({targets}){
+  if(!targets||!targets.length)return null;
   return(
     <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:490,overflow:'hidden'}}>
-      {targets.map(({pi,cx,cy},boltIdx)=>{
-        const ox=((pi*17+5)%22)-11;
-        const oy=((pi*13+7)%16)-8;
-        const startX=selfSrc.x+ox;
-        const startY=selfSrc.y+oy;
+      {targets.map(({pi,cx,cy,startX,startY},boltIdx)=>{
         const txPx=cx-startX;
         const tyPx=cy-startY;
         const delay=(boltIdx*0.07).toFixed(2)+'s';
@@ -2911,7 +2896,8 @@ export default function Game(){
   const[anim,setAnim]=useState(null);
   const[animExiting,setAnimExiting]=useState(false);
   const[hitIndices,setHitIndices]=useState([]);    // HP damage
-  const[sanHitIndices,setSanHitIndices]=useState([]); // SAN damage
+  const[sanHitIndices,setSanHitIndices]=useState([]);
+  const[sanTargets,setSanTargets]=useState([]); // pre-measured {pi,cx,cy,startX,startY} // SAN damage
   const[swapAnim,setSwapAnim]=useState(false);        // cup shuffle
   const[huntAnim,setHuntAnim]=useState(null);          // scope + vignette {targetIdx}
   const[bewitchAnim,setBewitchAnim]=useState(null);   // horus eye {cx,cy}
@@ -2975,12 +2961,27 @@ export default function Game(){
       clearTimeout(shakeTimerRef.current);
       shakeTimerRef.current=setTimeout(()=>{setScreenShake(false);},400);
     }else if(anim?.type==='SAN_DAMAGE'&&anim.hitIndices?.length){
-      setSanHitIndices(anim.hitIndices);
+      // 与 SKILL_HUNT / BEWITCH 相同：在 useEffect 内（paint后）测量 DOM 位置，避免 grid layout race
+      setSanHitIndices(anim.hitIndices); // 仍然保留用于面板边框高亮
+      const srcEl=document.querySelector('[data-pid="0"]');
+      const srcR=srcEl?srcEl.getBoundingClientRect():{left:window.innerWidth*0.5,top:window.innerHeight*0.7,width:0,height:0};
+      const srcX=srcR.left+srcR.width/2, srcY=srcR.top+srcR.height/2;
+      const pts=anim.hitIndices.map(pi=>{
+        const el=document.querySelector(`[data-pid="${pi}"]`);
+        if(el){
+          const r=el.getBoundingClientRect();
+          const cx=r.left+r.width/2, cy=r.top+r.height/2;
+          const ox=((pi*17+5)%22)-11, oy=((pi*13+7)%16)-8;
+          return{pi,cx,cy,startX:srcX+ox,startY:srcY+oy};
+        }
+        return{pi,cx:window.innerWidth/2,cy:window.innerHeight*0.3,startX:srcX,startY:srcY};
+      });
+      setSanTargets(pts);
       // Brief screen shake on SAN hit
       setScreenShake(true);
       clearTimeout(shakeTimerRef.current);
       shakeTimerRef.current=setTimeout(()=>setScreenShake(false),280);
-      setTimeout(()=>setSanHitIndices([]),850);
+      setTimeout(()=>{setSanHitIndices([]);setSanTargets([]);},850);
     }else if(anim?.type==='HP_HEAL'&&anim.hitIndices?.length){
       setHpHealIndices(anim.hitIndices);
       setTimeout(()=>setHpHealIndices([]),1300);
@@ -3021,6 +3022,7 @@ export default function Game(){
     }else if(!anim){
       setHitIndices([]);
       setSanHitIndices([]);
+      setSanTargets([]);
       setHpHealIndices([]);
       setSanHealIndices([]);
     }
@@ -3218,11 +3220,77 @@ export default function Game(){
   },[isMultiplayer,gs?.currentTurn,gs?._turnKey,gs?.gameOver]);
 
   // 执行自动结束回合（等动画结束后再执行，避免 isBlocked 时丢失）
+  // 兼容所有子阶段：DRAW_REVEAL / DRAW_SELECT_TARGET / GOD_CHOICE / NYA_BORROW / ACTION
   useEffect(()=>{
     if(!gs?._mpEndTurn)return;
-    if(isBlocked)return;  // 动画中：保留 flag，等 isBlocked 变 false 时重新触发
-    setGs(p=>p?{...p,_mpEndTurn:undefined}:p);
-    endTurnRef.current?.();
+    if(isBlocked)return;
+    // 纯函数：将当前 gs 的任意子阶段解析到 ACTION / DISCARD_PHASE
+    function resolveToAction(g){
+      const phase=g.phase;
+      if(phase==='ACTION'||phase==='DISCARD_PHASE')return g;
+      if(phase==='DRAW_REVEAL'){
+        // 无须指定目标：直接收入手牌（effectMsgs 已在 drawReveal.msgs 记录）
+        return{...g,phase:'ACTION',drawReveal:null};
+      }
+      if(phase==='DRAW_SELECT_TARGET'){
+        const dr=g.drawReveal;
+        if(!dr)return{...g,phase:'ACTION',drawReveal:null};
+        const living=g.players.slice(1).map((_,i)=>i+1).filter(i=>!g.players[i].isDead);
+        const ti=living.length?living[0|Math.random()*living.length]:1;
+        let P=copyPlayers(g.players),D=[...g.deck],Disc=[...g.discard];
+        const res=applyFx(dr.card,0,ti,P,D,Disc);
+        P=res.P;D=res.D;Disc=res.Disc;P[0].hand.push(dr.card);
+        const L=[...g.log,`(超时) [${dr.card.key}] 随机目标→${g.players[ti]?.name||'?'}`,...res.msgs];
+        return{...g,players:P,deck:D,discard:Disc,log:L,phase:'ACTION',drawReveal:null,abilityData:{}};
+      }
+      if(phase==='GOD_CHOICE'){
+        const godCard=g.abilityData?.godCard;
+        if(!godCard)return{...g,phase:'ACTION',abilityData:{}};
+        const Disc=[...g.discard,{...godCard}];
+        return{...g,discard:Disc,log:[...g.log,'(超时) 放弃了邪神的馈赠'],phase:'ACTION',abilityData:{}};
+      }
+      if(phase==='NYA_BORROW'){
+        // 跳过借身，直接摸牌
+        let P=copyPlayers(g.players),D=[...g.deck],Disc=[...g.discard];
+        const res=playerDrawCard(P,D,Disc,0);
+        P=res.P;D=res.D;Disc=res.Disc;
+        const L=[...g.log,'(超时) 跳过借身'];
+        if(res.needGodChoice){
+          // 连锁：摸到邪神牌 → 自动放弃
+          Disc.push({...res.drawnCard});
+          return{...g,players:P,deck:D,discard:Disc,log:[...L,'(超时) 放弃了邪神的馈赠'],phase:'ACTION',abilityData:{}};
+        }
+        if(res.needTarget){
+          // 摸到需目标牌 → 随机指定
+          const living=P.slice(1).map((_,i)=>i+1).filter(i=>!P[i].isDead);
+          const ti=living.length?living[0|Math.random()*living.length]:1;
+          const res2=applyFx(res.drawnCard,0,ti,P,D,Disc);
+          P=res2.P;P[0].hand.push(res.drawnCard);
+          return{...g,players:P,deck:res2.D,discard:res2.Disc,
+            log:[...L,`(超时) [${res.drawnCard.key}] 随机目标→${P[ti]?.name||'?'}`,...res2.msgs],
+            phase:'ACTION',drawReveal:null,abilityData:{}};
+        }
+        // 普通牌
+        return{...g,players:P,deck:D,discard:Disc,
+          log:[...L,...res.effectMsgs],
+          phase:'ACTION',
+          drawReveal:res.drawnCard?{card:res.drawnCard,msgs:res.effectMsgs,needTarget:false}:null,
+          abilityData:{}};
+      }
+      return g;
+    }
+
+    setGs(p=>{
+      if(!p)return p;
+      const base=resolveToAction({...p,_mpEndTurn:undefined});
+      const win=checkWin(base.players,true);if(win)return{...base,gameOver:win};
+      // 检查手牌超限
+      if(base.players[0].hand.length>4){
+        return{...base,phase:'DISCARD_PHASE',abilityData:{discardSelected:[]}};
+      }
+      // 结束回合（直接跳到下一回合，超时路径不播摸牌动画）
+      return startNextTurn({...base,currentTurn:0});
+    });
   },[gs?._mpEndTurn,isBlocked]);
 
   // ── 多人游戏：弃牌计时器（15s）─────────────────────────────────
@@ -4228,7 +4296,7 @@ export default function Game(){
       {/* Guillotine death animation */}
       {!suppressAnim&&anim?.type==='GUILLOTINE'&&<GuillotineAnim hitIndices={anim.hitIndices||[]}/>}
       {/* SAN damage full-screen mist bolts */}
-      {!suppressAnim&&<SanMistOverlay hitIndices={sanHitIndices}/>}
+      {!suppressAnim&&<SanMistOverlay targets={sanTargets}/>}
       {/* Skill overlays */}
       {!suppressAnim&&<SwapCupOverlay active={!!swapAnim} casterName={swapAnim?.casterName||''} targetName={swapAnim?.targetName||''}/>}
       {!suppressAnim&&<HuntScopeOverlay active={!!huntAnim} cx={huntAnim?.cx??0} cy={huntAnim?.cy??0}/>}
@@ -4376,18 +4444,45 @@ export default function Game(){
           {/* Log — narrow, right-aligned */}
           <div ref={logRef} style={{width:isMobile?'100%':218,flexBasis:isMobile?'100%':undefined,flexShrink:0,background:'#0e0904',border:'1.5px solid #2a1a08',borderRadius:3,padding:'8px 10px',overflowY:'auto',maxHeight:isMobile?100:222}}>
             <div style={{fontFamily:"'Cinzel',serif",color:'#7a5a2a',fontSize:9,letterSpacing:2,marginBottom:5,textTransform:'uppercase'}}>— 冒险日志 —</div>
-            {gs.log.slice(-50).map((line,i)=>(
-              <div key={i} style={{
-                fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
-                fontSize:11,lineHeight:1.7,
-                color:line.includes('──')?'#7a5020':
-                      line.includes('☠')||line.includes('死')||line.includes('倒')?'#882020':
-                      line.includes('获胜')||line.includes('集齐')?'#c8a96e':
-                      line.includes('掉包')||line.includes('追捕')||line.includes('蛊惑')?'#8060a0':
-                      '#5a4020',
-                fontWeight:line.includes('──')?700:400,
-              }}>{line}</div>
-            ))}
+            {(()=>{
+              // 多人游戏：用玩家真实名字替换其他人回合里的"你"
+              let logOwner=null; // 当前段落属于哪位玩家（名字）
+              const myName=gs.players[0]?.name;
+              return gs.log.slice(-50).map((line,i)=>{
+                const turnMatch=line.match(/^── (.+?) 的回合开始 ──$/);
+                if(turnMatch) logOwner=turnMatch[1];
+                let display=line;
+                if(gs._isMP&&logOwner&&logOwner!==myName){
+                  const owner=gs.players.find(p=>p.name===logOwner);
+                  const roleTag=owner?`${owner.name}（身份：${owner.role}）`:logOwner;
+                  // 替换各种"你"开头的句式
+                  display=display
+                    .replace(/^你（([^）]+)）/,(_,role)=>`${logOwner}（${role}）`)
+                    .replace(/^你的邪神之力/,`${logOwner}的邪神之力`)
+                    .replace(/^你遭遇/,`${logOwner}遭遇`)
+                    .replace(/^你信仰/,`${logOwner}信仰`)
+                    .replace(/^你放弃/,`${logOwner}放弃`)
+                    .replace(/^你摸到/,`${logOwner}摸到`)
+                    .replace(/^你选择/,`${logOwner}选择`)
+                    .replace(/^你借用/,`${logOwner}借用`)
+                    .replace(/^你（克苏鲁/,`${logOwner}（克苏鲁`)
+                    .replace(/^你$/,roleTag)
+                    .replace(/^你/,logOwner);
+                }
+                return(
+                  <div key={i} style={{
+                    fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
+                    fontSize:11,lineHeight:1.7,
+                    color:line.includes('──')?'#7a5020':
+                          line.includes('☠')||line.includes('死')||line.includes('倒')?'#882020':
+                          line.includes('获胜')||line.includes('集齐')?'#c8a96e':
+                          line.includes('掉包')||line.includes('追捕')||line.includes('蛊惑')?'#8060a0':
+                          '#5a4020',
+                    fontWeight:line.includes('──')?700:400,
+                  }}>{display}</div>
+                );
+              });
+            })()}
           </div>
         </div>
 
