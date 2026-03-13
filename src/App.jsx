@@ -531,7 +531,7 @@ function aiStep(gs){
           abilityData:{huntingAI:ct,aiHunterName:ai.name},
           skillUsed:true,_aiName:ai.name,_drawnCard:gs._drawnCard};
       }else{
-      const ri=0|Math.random()*zoneH.length;const rc=zoneH[ri];
+      const rc=aiChooseRevealCard(zoneH,P[ct].hand);
       L.push(`${ai.name}（追猎者）对 ${tgt.name} 【追捕】，亮出 [${rc.key}]`);
       const mi=P[ct].hand.findIndex(c=>c.letter===rc.letter||c.number===rc.number);
       if(mi>=0){const dc=P[ct].hand.splice(mi,1)[0];Disc.push(dc);P[ti].hp=clamp(P[ti].hp-2);L.push(`弃 [${dc.key}] → ${tgt.name} 受 2HP 伤害！`);if(P[ti].hp<=0){P[ti].isDead=true;P[ti].roleRevealed=true;L.push(`☠ ${tgt.name}（${tgt.role}）倒下了！`);if(P[ti].hand.length){P[ct].hand.push(...P[ti].hand);L.push(`${ai.name} 没收了 ${tgt.name} 的手牌！`);P[ti].hand=[];}if(P[ti].godZone?.length){Disc.push(...P[ti].godZone);P[ti].godZone=[];P[ti].godName=null;P[ti].godLevel=0;}}}
@@ -2572,6 +2572,7 @@ export default function Game(){
   const [playerUsername,setPlayerUsername]=useState('');
   const [renameInput,setRenameInput]=useState('');
   const [renameCdActive,setRenameCdActive]=useState(false);
+  const [renameInputVisible,setRenameInputVisible]=useState(false);
   const renameCdTimerRef=useRef(null);
   const [joinRoomInput,setJoinRoomInput]=useState('');
   // 联机多人游戏状态
@@ -3226,11 +3227,34 @@ export default function Game(){
     return()=>{clearTimeout(t);clearInterval(mpTurnIntervalRef.current);setMpTurnSec(null);};
   },[isMultiplayer,gs?.currentTurn,gs?._turnKey,gs?.gameOver]);
 
+  // HUNT_WAIT_REVEAL 期间 45s 计时暂停 + 被追捕者 20s 超时随机亮牌
+  const huntRevealTimerRef=useRef(null);
+  useEffect(()=>{
+    if(!isMultiplayer||!gs||gs.gameOver)return;
+    // 只对被追捕方（非 myTurn）生效
+    if(gs.phase!=='HUNT_WAIT_REVEAL'||myTurn)return;
+    const t=setTimeout(()=>{
+      // 超时：随机选一张非邪神牌亮出
+      const zoneCards=me.hand.filter(c=>!c.isGod);
+      if(!zoneCards.length)return;
+      const rc=zoneCards[0|Math.random()*zoneCards.length];
+      const L=[...gs.log,`(超时) ${me.name} 随机亮出 [${rc.key}] ${rc.name}`];
+      const newGs={...gs,log:L,phase:'HUNT_CONFIRM',
+        abilityData:{...gs.abilityData,revCard:rc}};
+      setGs(newGs);
+    },20000);
+    huntRevealTimerRef.current=t;
+    return()=>{clearTimeout(t);huntRevealTimerRef.current=null;};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[gs?.phase,gs?.currentTurn,isMultiplayer]);
+
   // 执行自动结束回合（等动画结束后再执行，避免 isBlocked 时丢失）
   // 兼容所有子阶段：DRAW_REVEAL / DRAW_SELECT_TARGET / GOD_CHOICE / NYA_BORROW / ACTION
   useEffect(()=>{
     if(!gs?._mpEndTurn)return;
     if(isBlocked)return;
+    // HUNT_WAIT_REVEAL 期间追猎者等待对方亮牌，暂不处理超时结束回合
+    if(gs.phase==='HUNT_WAIT_REVEAL')return;
     // 纯函数：将当前 gs 的任意子阶段解析到 ACTION / DISCARD_PHASE
     function resolveToAction(g){
       const phase=g.phase;
@@ -3513,29 +3537,41 @@ export default function Game(){
               </div>
 
               {/* ── 功能区 C：用户名 ── */}
-              <div style={{background:'#120920',border:'1px solid #4a3070',borderRadius:4,padding:'16px 18px',display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{background:'#120920',border:'1px solid #4a3070',borderRadius:4,padding:'16px 18px',display:'flex',flexDirection:'column',gap:8}}>
                 <div style={{fontFamily:"'Cinzel',serif",color:'#6a5080',fontSize:9,letterSpacing:2,textTransform:'uppercase'}}>— 你的联机用户名 —</div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                  <input
-                    value={renameInput}
-                    onChange={e=>setRenameInput(e.target.value)}
-                    onKeyDown={e=>e.key==='Enter'&&handleRename()}
-                    maxLength={10}
-                    style={{
-                      flex:1,background:'#160d22',border:'1px solid #5a3a80',borderRadius:3,
-                      color:'#e0c0f8',fontFamily:"'Cinzel',serif",fontSize:13,
-                      padding:'8px 12px',outline:'none',letterSpacing:1,
-                    }}
-                  />
-                  <button onClick={handleRename} disabled={renameCdActive} style={{
-                    padding:'8px 14px',background:renameCdActive?'#1e1430':'#2e1450',
-                    border:'1px solid '+(renameCdActive?'#3a2560':'#7a50b0'),
-                    borderRadius:3,color:renameCdActive?'#5a4070':'#c8a0e8',
-                    fontFamily:"'Cinzel',serif",fontSize:11,
-                    cursor:renameCdActive?'not-allowed':'pointer',
-                    transition:'all .2s',whiteSpace:'nowrap',
-                  }}>{renameCdActive?'冷却中…':'修改'}</button>
-                </div>
+                {renameInputVisible?(
+                  <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    <input
+                      autoFocus
+                      value={renameInput}
+                      onChange={e=>setRenameInput(e.target.value)}
+                      onKeyDown={e=>{if(e.key==='Enter'){handleRename();setRenameInputVisible(false);}else if(e.key==='Escape')setRenameInputVisible(false);}}
+                      maxLength={10}
+                      style={{
+                        flex:1,background:'#160d22',border:'1px solid #5a3a80',borderRadius:3,
+                        color:'#e0c0f8',fontFamily:"'Cinzel',serif",fontSize:13,
+                        padding:'6px 10px',outline:'none',letterSpacing:1,
+                      }}
+                    />
+                    <button onClick={()=>{handleRename();setRenameInputVisible(false);}} disabled={renameCdActive} style={{
+                      padding:'6px 12px',background:renameCdActive?'#1e1430':'#2e1450',
+                      border:'1px solid '+(renameCdActive?'#3a2560':'#7a50b0'),
+                      borderRadius:3,color:renameCdActive?'#5a4070':'#c8a0e8',
+                      fontFamily:"'Cinzel',serif",fontSize:11,
+                      cursor:renameCdActive?'not-allowed':'pointer',whiteSpace:'nowrap',
+                    }}>{renameCdActive?'冷却中…':'确认'}</button>
+                  </div>
+                ):(
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontFamily:"'Cinzel',serif",fontSize:14,color:'#e0c0f8',letterSpacing:1,flex:1}}>{playerUsername||'—'}</span>
+                    <button onClick={()=>{setRenameInput(playerUsername);setRenameInputVisible(true);}} style={{
+                      padding:'4px 10px',background:'none',
+                      border:'1px solid #5a3a80',borderRadius:3,
+                      color:'#a080c8',fontFamily:"'Cinzel',serif",fontSize:10,
+                      cursor:'pointer',whiteSpace:'nowrap',
+                    }}>修改</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -3821,6 +3857,20 @@ export default function Game(){
     triggerAnimQueue([{type:'SKILL_SWAP',msgs:L.slice(-2)},...buildAnimQueue(gs,newGs)],newGs);
   }
 
+  // AI 亮牌策略：选择与追猎者手牌匹配度最低的区域牌（降低被击中概率）
+  function aiChooseRevealCard(targetHand,hunterHand){
+    const zoneCards=targetHand.filter(c=>!c.isGod);
+    if(!zoneCards.length)return targetHand[0]; // fallback
+    // 计算每张牌被追猎者匹配（字母或编号相同）的风险
+    const scored=zoneCards.map(c=>{
+      const matched=hunterHand.filter(h=>h.letter===c.letter||h.number===c.number).length;
+      return{c,matched};
+    });
+    // 按风险从低到高排序，选最安全的一张
+    scored.sort((a,b)=>a.matched-b.matched);
+    return scored[0].c;
+  }
+
   function huntSelectTarget(ti){
     let P=copyPlayers(gs.players);P[0].roleRevealed=true;
     const tHand=P[ti].hand.filter(c=>!c.isGod);
@@ -3828,21 +3878,21 @@ export default function Game(){
       setGs({...gs,players:P,phase:'ACTION',abilityData:{},log:[...gs.log,`${P[ti].name} 手中无区域牌，追捕失败`]});
       return;
     }
-    const ri2=0|Math.random()*tHand.length;
-    const rc=tHand[ri2];
+    if(gs._isMP){
+      // 多人游戏：目标是真人玩家，让目标自己选择亮出哪张牌（20秒超时随机）
+      // 暂停房主回合计时器：进入 HUNT_WAIT_REVEAL 子阶段，目标玩家选完后恢复
+      const huntWaitGs={...gs,players:P,phase:'HUNT_WAIT_REVEAL',
+        abilityData:{...(gs.abilityData||{}),huntTi:ti},
+        log:[...gs.log,`你（追猎者）追捕 ${P[ti].name}，等待对方亮出一张区域牌…`]};
+      triggerAnimQueue([{type:'SKILL_HUNT',targetIdx:ti}],huntWaitGs);
+      return;
+    }
+    // 单机/AI目标：由AI策略选择最优亮牌
+    const rc=aiChooseRevealCard(P[ti].hand,P[0].hand);
     const huntConfirmGs={...gs,players:P,phase:'HUNT_CONFIRM',
       abilityData:{...(gs.abilityData||{}),huntTi:ti,revCard:rc},
-      log:[...gs.log,`你（追猎者）追捕 ${P[ti].name}，随机亮出其手牌 [${rc.key}] ${rc.name}`]};
-    // Play scope animation targeting the victim; state transitions to HUNT_CONFIRM when done
-    const panelEl=document.getElementById(`player-panel-${ti}`);
-    if(panelEl){
-      const r=panelEl.getBoundingClientRect();
-      setHuntAnim({cx:r.left+r.width/2,cy:r.top+r.height/2});
-    }else{
-      setHuntAnim({cx:window.innerWidth/2,cy:window.innerHeight*0.25});
-    }
-    setTimeout(()=>setHuntAnim(null),1300);
-    // Deliver HUNT_CONFIRM state after anim
+      log:[...gs.log,`你（追猎者）追捕 ${P[ti].name}，${P[ti].name} 亮出 [${rc.key}] ${rc.name}`]};
+    // 动画位置测量交给 useEffect([anim]) 中的 SKILL_HUNT 分支（使用 data-pid，正确）
     triggerAnimQueue([{type:'SKILL_HUNT',targetIdx:ti}],huntConfirmGs);
   }
   function huntConfirm(myCardIdx){
@@ -3863,6 +3913,21 @@ export default function Game(){
       setGs({...gs,players:P,log:L,phase:'ACTION',huntAbandoned:newAbandoned,
         abilityData:{...gs.abilityData,huntTi:undefined,revCard:undefined}});
     }
+  }
+
+  // 多人游戏：被追捕的真人玩家选择亮出一张区域牌
+  function humanRevealForMPHunt(cardIdx){
+    const card=me.hand[cardIdx];
+    if(!card||card.isGod)return;
+    const{huntTi}=gs.abilityData; // huntTi = 被追捕者在当前视角下的 index（非0）
+    // 被追捕者将选择结果推送回规范 gs 并广播：
+    // 设置 revCard，切换到 HUNT_CONFIRM 让追猎者（currentTurn=0 视角）完成后续
+    const P=copyPlayers(gs.players);
+    const L=[...gs.log,`${me.name} 亮出 [${card.key}] ${card.name}`];
+    const newGs={...gs,players:P,log:L,phase:'HUNT_CONFIRM',
+      abilityData:{...gs.abilityData,revCard:card}};
+    setGs(newGs);
+    // gs sync useEffect 将广播给追猎者
   }
 
   // Called when player picks their zone card to reveal during an AI hunt
@@ -4187,6 +4252,7 @@ export default function Game(){
     HUNT_SELECT_TARGET:   '【追捕】选择猎物',
     HUNT_CONFIRM:         `[${gs.abilityData?.revCard?.key}] ${gs.abilityData?.revCard?.name} 已亮出！弃出匹配手牌造成2HP，或放弃`,
     PLAYER_REVEAL_FOR_HUNT:`⚠ ${gs.abilityData?.aiHunterName||'追猎者'} 正在追捕你！请选择一张区域牌亮出`,
+    HUNT_WAIT_REVEAL:myTurn?`等待 ${gs.players[gs.abilityData?.huntTi??1]?.name||'对方'} 亮出区域牌…`:`⚠ 追猎者正在追捕你！请选择一张区域牌亮出（20秒）`,
     BEWITCH_SELECT_CARD:  '【蛊惑】选择要赠送的手牌',
     GOD_CHOICE:          myTurn?'邪神降临！选择如何回应':(gs._isMP?`等候 ${gs.players[gs.currentTurn]?.name} 回应邪神…`:'邪神降临！选择如何回应'),
     NYA_BORROW:          myTurn?'「千人千貌」——借用已死角色的身份？':(gs._isMP?`等候 ${gs.players[gs.currentTurn]?.name} 借用身份…`:'「千人千貌」——借用已死角色的身份？'),
@@ -4247,6 +4313,7 @@ export default function Game(){
     else if(phase==='DISCARD_PHASE')toggleDiscardSelect(idx);
     else if(phase==='HUNT_CONFIRM'){const c=me.hand[idx],rc=gs.abilityData?.revCard;if(rc&&(c.letter===rc.letter||c.number===rc.number))huntConfirm(idx);}
     else if(phase==='PLAYER_REVEAL_FOR_HUNT'){const c=me.hand[idx];if(c&&!c.isGod)playerRevealForHunt(idx);}
+    else if(phase==='HUNT_WAIT_REVEAL'&&!myTurn){const c=me.hand[idx];if(c&&!c.isGod)humanRevealForMPHunt(idx);}
     else if(phase==='ACTION'&&myTurn&&!isBlocked){
       const c=me.hand[idx];
       if(c&&c.isGod){
@@ -4261,6 +4328,7 @@ export default function Game(){
     if(phase==='BEWITCH_SELECT_CARD')return true;
     if(phase==='DISCARD_PHASE'){const sel=gs.abilityData.discardSelected||[];const max=me.hand.length-4;return sel.includes(idx)||sel.length<max;}
     if(phase==='HUNT_CONFIRM'){const rc=gs.abilityData?.revCard;return!!(rc&&(c.letter===rc.letter||c.number===rc.number));}
+    if(phase==='HUNT_WAIT_REVEAL'&&!myTurn)return!c.isGod;
     if(phase==='PLAYER_REVEAL_FOR_HUNT')return!c.isGod; // only zone cards
     // God card in ACTION phase: upgrade (same god) is always allowed; worship/convert requires slot
     if(phase==='ACTION'&&myTurn&&c.isGod){
@@ -4521,7 +4589,7 @@ export default function Game(){
         <div ref={handAreaRef} style={{background:'#120900',border:`1.5px solid ${myTurn?'#3a2010':'#2a1a08'}`,borderRadius:3,padding:isMobile?'8px 9px':'11px 13px'}}>
           <div style={{display:'flex',alignItems:'center',marginBottom:9,gap:8}}>
             <span style={{fontFamily:"'Cinzel',serif",color:phase==='DISCARD_PHASE'||phase==='PLAYER_REVEAL_FOR_HUNT'?'#882020':'#3a2510',fontSize:10,letterSpacing:1}}>
-              {phase==='DISCARD_PHASE'?`⚠ 手牌超限 (${me.hand.length}/${effectiveHandLimit})`:phase==='PLAYER_REVEAL_FOR_HUNT'?'⚠ 选择亮出一张区域牌':`手牌 (${me.hand.length}/${effectiveHandLimit})`}
+              {phase==='DISCARD_PHASE'?`⚠ 手牌超限 (${me.hand.length}/${effectiveHandLimit})`:phase==='PLAYER_REVEAL_FOR_HUNT'?'⚠ 选择亮出一张区域牌':phase==='HUNT_WAIT_REVEAL'&&!myTurn?'⚠ 选择亮出一张区域牌':`手牌 (${me.hand.length}/${effectiveHandLimit})`}
             </span>
             {(phase==='ACTION'&&myTurn&&!isBlocked||cancelable)&&(
               <div style={{display:'flex',gap:8,marginLeft:'auto',flexWrap:'wrap',position:'relative',zIndex:200}}>
