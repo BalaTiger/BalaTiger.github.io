@@ -3969,12 +3969,22 @@ export default function Game(){
       L.push(reason);
       const newGs={...gs,players:P,log:L,abilityData:{},
         gameOver:{winner:'寻宝者',reason,winnerIdx:swapTi},phase:'ACTION',skillUsed:true};
-      triggerAnimQueue([{type:'SKILL_SWAP',msgs:[reason]},...buildAnimQueue(gs,newGs)],newGs);
+      const statQ2=buildAnimQueue(gs,newGs).filter(a=>a.type!=='CARD_TRANSFER');
+      triggerAnimQueue([{type:'SKILL_SWAP',msgs:[reason]},
+        {type:'CARD_TRANSFER',fromPid:0,dest:'player',toPid:swapTi,count:1},
+        {type:'CARD_TRANSFER',fromPid:swapTi,dest:'player',toPid:0,count:1},
+        ...statQ2],newGs);
       return;
     }
     const win=checkWin(P,gs._isMP);
     const newGs={...gs,players:P,log:L,abilityData:{},phase:'ACTION',skillUsed:true,...(win?{gameOver:win}:{})};
-    triggerAnimQueue([{type:'SKILL_SWAP',msgs:L.slice(-2)},...buildAnimQueue(gs,newGs)],newGs);
+    // 手动注入飞牌动画：掉包是两步操作，buildAnimQueue 无法从单步 diff 检测到双向交换
+    // event1：player 0 把 given 牌给 swapTi
+    // event2：swapTi 的 takenCard 飞向 player 0（已在 swapSelectTarget 里取出）
+    const swapTransfer1={type:'CARD_TRANSFER',fromPid:0,dest:'player',toPid:swapTi,count:1};
+    const swapTransfer2={type:'CARD_TRANSFER',fromPid:swapTi,dest:'player',toPid:0,count:1};
+    const statQ=buildAnimQueue(gs,newGs).filter(a=>a.type!=='CARD_TRANSFER');
+    triggerAnimQueue([{type:'SKILL_SWAP',msgs:L.slice(-2)},swapTransfer1,swapTransfer2,...statQ],newGs);
   }
 
   // AI 亮牌策略：选择与追猎者手牌匹配度最低的区域牌（降低被击中概率）
@@ -4370,7 +4380,7 @@ export default function Game(){
     SWAP_SELECT_TARGET:   '【掉包】选择目标角色',
     SWAP_GIVE_CARD:       `暗抽到 [${gs.abilityData?.takenCard?.key}]，选一张手牌还给对方`,
     HUNT_SELECT_TARGET:   '【追捕】选择猎物',
-    HUNT_CONFIRM:         `[${gs.abilityData?.revCard?.key}] ${gs.abilityData?.revCard?.name} 已亮出！弃出匹配手牌造成2HP，或放弃`,
+    HUNT_CONFIRM:         myTurn?`[${gs.abilityData?.revCard?.key}] ${gs.abilityData?.revCard?.name} 已亮出！弃出匹配手牌造成2HP，或放弃`:(gs._isMP?'请等待追猎者做出选择…':`[${gs.abilityData?.revCard?.key}] 已亮出`),
     PLAYER_REVEAL_FOR_HUNT:`⚠ ${gs.abilityData?.aiHunterName||'追猎者'} 正在追捕你！请选择一张区域牌亮出`,
     HUNT_WAIT_REVEAL:myTurn?`等待 ${gs.players[gs.abilityData?.huntTi??1]?.name||'对方'} 亮出区域牌…`:`⚠ 追猎者正在追捕你！请选择一张区域牌亮出（20秒）`,
     BEWITCH_SELECT_CARD:  '【蛊惑】选择要赠送的手牌',
@@ -4384,7 +4394,8 @@ export default function Game(){
   }[phase]||'';
 
   const selectingOther=['DRAW_SELECT_TARGET','SWAP_SELECT_TARGET','HUNT_SELECT_TARGET','BEWITCH_SELECT_TARGET'].includes(phase);
-  const cancelable=['SWAP_SELECT_TARGET','SWAP_GIVE_CARD','HUNT_SELECT_TARGET','HUNT_CONFIRM','BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
+  // 多人游戏中 HUNT_CONFIRM 非追猎者不显示操作按钮区域
+  const cancelable=['SWAP_SELECT_TARGET','SWAP_GIVE_CARD','HUNT_SELECT_TARGET',...(phase==='HUNT_CONFIRM'&&gs._isMP&&!myTurn?[]:['HUNT_CONFIRM']),'BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
   // In HUNT_CONFIRM, 放弃追捕 replaces ✕取消 — never show both
   const showCancelBtn=cancelable&&phase!=='HUNT_CONFIRM';
 
@@ -4768,7 +4779,7 @@ export default function Game(){
                     position:'relative',zIndex:200,
                   }}>✕ 取消</button>
                 )}
-                {phase==='HUNT_CONFIRM'&&(
+                {phase==='HUNT_CONFIRM'&&(!gs._isMP||myTurn)&&(
                   <button onClick={()=>huntConfirm(-1)} style={{
                     padding:'6px 18px',background:'#1a0c04',
                     border:'2px solid #d4832a',color:'#f0a855',
