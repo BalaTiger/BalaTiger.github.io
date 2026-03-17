@@ -2875,6 +2875,25 @@ export default function Game(){
           }else{
             setGs(rotated);
           }
+        }else if(!rotated.gameOver&&rotated.currentTurn===0&&(
+          rotated.phase==='DRAW_REVEAL'||
+          rotated.phase==='DRAW_SELECT_TARGET'||
+          rotated.phase==='GOD_CHOICE'
+        )){
+          // 轮到自己时，同样需要播放 YOUR_TURN + DRAW_CARD 动画再解锁真实 phase
+          const ph=rotated.phase;
+          const drawnCard=ph==='GOD_CHOICE'?rotated.abilityData?.godCard:rotated.drawReveal?.card;
+          if(drawnCard){
+            setGs({...rotated,phase:'ACTION',drawReveal:null,abilityData:{}});
+            receivedGsRef.current=true;
+            suppressNextBroadcastRef.current=true;
+            pendingGsRef.current=rotated;
+            animQueueRef.current=[];
+            setAnim({type:'YOUR_TURN'});
+            animQueueRef.current=[{type:'DRAW_CARD',card:drawnCard,triggerName:'你',targetPid:0}];
+          }else{
+            setGs(rotated);
+          }
         }else{
           setGs(rotated);
         }
@@ -3104,7 +3123,9 @@ export default function Game(){
       setScreenShake(true);
       clearTimeout(shakeTimerRef.current);
       shakeTimerRef.current=setTimeout(()=>setScreenShake(false),280);
-      setTimeout(()=>{setSanHitIndices([]);setSanTargets([]);},850);
+      // 面板边框高亮恢复（850ms），但 sanTargets 不在这里清除：
+      // 由 !anim 分支统一清除，避免与紧跟的 SAN_DAMAGE 动画产生竞态导致位置跳变
+      setTimeout(()=>setSanHitIndices([]),850);
     }else if(anim?.type==='HP_HEAL'&&anim.hitIndices?.length){
       setHpHealIndices(anim.hitIndices);
       setTimeout(()=>setHpHealIndices([]),1300);
