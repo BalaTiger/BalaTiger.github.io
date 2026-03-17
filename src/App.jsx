@@ -350,6 +350,8 @@ function startNextTurn(gs){
     }
     const res=playerDrawCard(P,D,Disc);
     P=res.P;D=res.D;Disc=res.Disc;
+    // 多人游戏中记录玩家0摸牌信息到日志，让其他玩家可见（单机不需要，DRAW_REVEAL 时可见）
+    if(gs._isMP&&res.drawnCard)L.push(`${P[0].name} 摸到 [${res.drawnCard.key}] ${res.drawnCard.name}`);
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false};}
     if(res.needGodChoice){const win2=checkWin(P,gs._isMP);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],gameOver:win2};return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null};}
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
@@ -2865,6 +2867,7 @@ export default function Game(){
             // 用遮蔽态先渲染，避免 DrawRevealModal/GOD_CHOICE 弹出
             setGs({...rotated,phase:'ACTION',drawReveal:null,abilityData:{}});
             receivedGsRef.current=true; // 防止 gs sync useEffect 广播遮蔽态
+            suppressNextBroadcastRef.current=true; // advanceQueue 应用 pendingGs 时也不广播（已从服务器收到，不应回传）
             // 播放飞牌+翻牌动画，pendingGs 为真实态
             pendingGsRef.current=rotated;
             animQueueRef.current=[];
@@ -3185,11 +3188,18 @@ export default function Game(){
       const next=pendingGsRef.current;
       pendingGsRef.current=null;
       setAnim(null);
-      if(next) setGs(prev=>{
-        // Never overwrite a win/pending-win state with stale queued state
-        if(prev?.gameOver||prev?.phase==='PLAYER_WIN_PENDING'||prev?.phase==='TREASURE_WIN')return prev;
-        return next;
-      });
+      if(next){
+        if(suppressNextBroadcastRef.current){
+          // This pendingGs came from a received state; don't echo it back to server
+          suppressNextBroadcastRef.current=false;
+          receivedGsRef.current=true;
+        }
+        setGs(prev=>{
+          // Never overwrite a win/pending-win state with stale queued state
+          if(prev?.gameOver||prev?.phase==='PLAYER_WIN_PENDING'||prev?.phase==='TREASURE_WIN')return prev;
+          return next;
+        });
+      }
     }
   }
 
@@ -3339,6 +3349,7 @@ export default function Game(){
   // refs 供计时器 useEffect 调用（避免陈旧闭包，必须在 if(!gs) return 之前）
   const endTurnRef=useRef(null);
   const autoDiscardRef=useRef(null);
+  const suppressNextBroadcastRef=useRef(false); // set before bystander-anim pendingGs; cleared in advanceQueue
 
   // ── 房间倒计时显示（前端独立计时，服务端计时器版本号变化时重置）───
   useEffect(()=>{
@@ -4352,7 +4363,8 @@ export default function Game(){
       if(drawnCard&&(ph==='DRAW_REVEAL'||ph==='GOD_CHOICE'||ph==='DRAW_SELECT_TARGET')){
         const drawerName=newGs.players[newGs.currentTurn]?.name||'???';
         const drawerPid=newGs.currentTurn;
-        receivedGsRef.current=true; // 遮蔽态不对外广播
+        receivedGsRef.current=true; // 遮蔽态不对外广播；真实 gs 由 advanceQueue→setGs→useEffect([gs]) 正常广播
+        // 注意：此处不设 suppressNextBroadcastRef，advanceQueue 应用真实 gs 后必须广播给其他玩家
         pendingGsRef.current=newGs;
         animQueueRef.current=[];
         setGs({...newGs,phase:'ACTION',drawReveal:null,abilityData:{}});
@@ -4434,6 +4446,7 @@ export default function Game(){
         :pendingGs.drawReveal?.card;
       if(drawnCard){
         // 遮蔽真实 phase，动画结束后 advanceQueue 再还原（与 applyNextTurnGs 同样模式）
+        suppressNextBroadcastRef.current=true; // pendingGs 已广播过，advanceQueue 不再回传
         pendingGsRef.current=pendingGs;
         animQueueRef.current=[];
         setGs({...pendingGs,phase:'ACTION',drawReveal:null,abilityData:{}});
