@@ -74,6 +74,10 @@ const GOD_DEFS={
 const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}return b;};
 const clamp=(v,lo=0,hi=10)=>Math.max(lo,Math.min(hi,v));
 const copyPlayers=ps=>ps.map(p=>({...p,hand:[...p.hand],godZone:[...(p.godZone||[])]}));
+const buildPublicUrl=path=>{
+  const base=(import.meta.env.BASE_URL||'/').replace(/\/?$/,'/');
+  return `${base}${String(path).replace(/^\/+/,'')}`;
+};
 // Per-card copy counts — tuned for E[HP|HP card] ≈ −2
 // Cards: A1×3 A2×3 … D4×3 — 3 copies each, 48 total
 // Each card has exactly 3 copies → 48 cards total.
@@ -2750,6 +2754,22 @@ function AboutModal({onClose}){
         <div style={{padding:'16px 20px 22px',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#b07828',letterSpacing:2,textTransform:'uppercase'}}>— 意见与反馈 —</div>
           <div style={{color:'#c8a96e',fontSize:12,letterSpacing:1}}>QQ催更群：787317460</div>
+          <div style={{color:'#9a7a42',fontSize:11,letterSpacing:1,fontStyle:'italic'}}>微信催更群二维码</div>
+          <img
+            src={buildPublicUrl('QRCode.jpg')}
+            alt="微信催更群二维码"
+            style={{
+              display:'block',
+              width:'min(76vw,240px)',
+              maxWidth:'100%',
+              height:'auto',
+              borderRadius:6,
+              border:'1px solid #5a3a10',
+              boxShadow:'0 0 18px #00000066',
+              imageRendering:'auto',
+              background:'#1a1208',
+            }}
+          />
         </div>
       </div>
     </div>
@@ -2845,6 +2865,118 @@ function GammaSlider({gamma,onChange}){
   );
 }
 
+function useGameAudio(isBattleScreen){
+  const [audioReady,setAudioReady]=useState(false);
+  const bgmRefs=useRef({main:null,battle:null});
+  const sfxRefs=useRef({open:null,close:null});
+  const currentTrackRef=useRef(null);
+  const fadeTokenRef=useRef(0);
+  const targetVolumesRef=useRef({main:0.32,battle:0.24});
+
+  useEffect(()=>{
+    const main=new Audio(buildPublicUrl('sounds/mainTheme.mp3'));
+    const battle=new Audio(buildPublicUrl('sounds/battle.mp3'));
+    const open=new Audio(buildPublicUrl('sounds/open.mp3'));
+    const close=new Audio(buildPublicUrl('sounds/close.mp3'));
+    [main,battle].forEach(audio=>{
+      audio.loop=true;
+      audio.preload='auto';
+      audio.volume=0;
+    });
+    [open,close].forEach(audio=>{
+      audio.preload='auto';
+      audio.volume=0.6;
+    });
+    bgmRefs.current={main,battle};
+    sfxRefs.current={open,close};
+    return()=>{
+      [main,battle,open,close].forEach(audio=>{
+        try{
+          audio.pause();
+          audio.currentTime=0;
+        }catch{}
+      });
+    };
+  },[]);
+
+  const syncTrack=(instant=false)=>{
+    if(!audioReady)return;
+    const nextKey=isBattleScreen?'battle':'main';
+    const prevKey=currentTrackRef.current;
+    if(prevKey===nextKey)return;
+    const nextAudio=bgmRefs.current[nextKey];
+    const prevAudio=prevKey?bgmRefs.current[prevKey]:null;
+    if(!nextAudio)return;
+    currentTrackRef.current=nextKey;
+    const token=++fadeTokenRef.current;
+    const nextTarget=targetVolumesRef.current[nextKey];
+    const prevStart=prevAudio?.volume??0;
+    const duration=instant?0:420;
+    try{
+      nextAudio.loop=true;
+      nextAudio.volume=instant?nextTarget:0;
+      nextAudio.play().catch(()=>{});
+    }catch{}
+    if(!prevAudio||duration===0){
+      if(prevAudio&&prevAudio!==nextAudio){
+        try{
+          prevAudio.pause();
+          prevAudio.currentTime=0;
+          prevAudio.volume=0;
+        }catch{}
+      }
+      nextAudio.volume=nextTarget;
+      return;
+    }
+    const start=performance.now();
+    const step=now=>{
+      if(fadeTokenRef.current!==token)return;
+      const progress=Math.min((now-start)/duration,1);
+      try{prevAudio.volume=prevStart*(1-progress);}catch{}
+      try{nextAudio.volume=nextTarget*progress;}catch{}
+      if(progress<1){
+        requestAnimationFrame(step);
+        return;
+      }
+      try{
+        prevAudio.pause();
+        prevAudio.currentTime=0;
+        prevAudio.volume=0;
+      }catch{}
+      try{nextAudio.volume=nextTarget;}catch{}
+    };
+    requestAnimationFrame(step);
+  };
+
+  useEffect(()=>{
+    syncTrack(false);
+  },[audioReady,isBattleScreen]);
+
+  const noteUserGesture=()=>{
+    if(!audioReady){
+      setAudioReady(true);
+      queueMicrotask(()=>syncTrack(true));
+    }
+  };
+
+  const playSfx=kind=>{
+    noteUserGesture();
+    const audio=sfxRefs.current[kind];
+    if(!audio)return;
+    try{
+      audio.pause();
+      audio.currentTime=0;
+      audio.play().catch(()=>{});
+    }catch{}
+  };
+
+  return{
+    noteUserGesture,
+    playOpenSound:()=>playSfx('open'),
+    playCloseSound:()=>playSfx('close'),
+  };
+}
+
 export default function Game(){
   const[gs,setGs]=useState(null);
   const[modal,setModal]=useState(null); // 'about' | 'roadmap' | null
@@ -2868,6 +3000,23 @@ export default function Game(){
   const [tutorialDone,setTutorialDone]=useState(readTutorialDone);
   const [showTutorial,setShowTutorial]=useState(false);
   const [tutorialStep,setTutorialStep]=useState(1);
+  const isBattleScreen=!!gs&&!gs.gameOver;
+  const {noteUserGesture,playOpenSound,playCloseSound}=useGameAudio(isBattleScreen);
+
+  function isCloseButtonText(text){
+    const normalized=(text||'').replace(/\s+/g,'');
+    return normalized==='✕'||normalized.startsWith('✕')||normalized.includes('关闭')||normalized.includes('取消');
+  }
+
+  function handleUiSfxCapture(e){
+    const button=e.target?.closest?.('button');
+    if(!button||button.disabled)return;
+    if(button.dataset?.sfx==='none')return;
+    noteUserGesture();
+    const text=(button.textContent||'').trim();
+    if(button.dataset?.sfx==='close'||isCloseButtonText(text))playCloseSound();
+    else playOpenSound();
+  }
 
   // ── Multiplayer ───────────────────────────────────────────────
   // ⚠ Change SERVER_URL to your backend address before deploying
@@ -3853,7 +4002,7 @@ export default function Game(){
   // ── Start Screen ───────────────────────────────────────────
   if(!gs){
     return(
-      <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative',overflow:'hidden',filter:gammaFilter}}>
+      <div onClickCapture={handleUiSfxCapture} style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative',overflow:'hidden',filter:gammaFilter}}>
         {/* Vignette */}
         <div style={{position:'fixed',inset:0,background:'radial-gradient(ellipse at center,transparent 30%,#000000bb 100%)',pointerEvents:'none'}}/>
         {/* Animation overlay — visible even before game starts (first-turn card flip) */}
@@ -4232,7 +4381,7 @@ export default function Game(){
       :(winner===myRole);
     const isLose=winner==='LOSE'||winner==='LOSE_ALL';
     return(
-      <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative'}}>
+      <div onClickCapture={handleUiSfxCapture} style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',padding:24,position:'relative'}}>
         <div style={{position:'fixed',inset:0,background:'radial-gradient(ellipse at center,transparent 20%,#000000cc 100%)',pointerEvents:'none'}}/>
         <div style={{position:'relative',zIndex:1}}>
           <div style={{fontSize:72,marginBottom:14,filter:`drop-shadow(0 0 30px ${iWon?'#c8a96e':isLose?'#882020':'#9060cc'})`,animation:'animPop 0.4s ease-out'}}>{isLose?'☠':iWon?'✦':'⚔'}</div>
@@ -4967,7 +5116,7 @@ export default function Game(){
   const skillLimited=gs.skillUsed&&ri.skillLimited;
 
   return(<>
-    <div style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',gap:isMobile?5:7,padding:isMobile?'6px 8px':'8px 10px',position:'relative',overflowX:'hidden',filter:gammaFilter,
+    <div onClickCapture={handleUiSfxCapture} style={{minHeight:'100vh',background:'#0a0705',color:'#c8a96e',fontFamily:"'IM Fell English','Georgia',serif",display:'flex',flexDirection:'column',gap:isMobile?5:7,padding:isMobile?'6px 8px':'8px 10px',position:'relative',overflowX:'hidden',filter:gammaFilter,
     animation:deathShake?'deathShakeAnim 2.0s ease-in-out':screenShake?'screenShakeAnim 0.38s ease-in-out':undefined,
     }}>
       {/* Global vignette */}
