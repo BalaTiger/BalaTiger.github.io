@@ -3881,7 +3881,12 @@ export default function Game(){
             setGs(rotated);
           }
         }else{
-          setGs(rotated);
+          // 非活跃玩家不应进入 DISCARD_PHASE：把收到的 DISCARD_PHASE 替换为 ACTION
+          if(rotated.phase==='DISCARD_PHASE'&&rotated.currentTurn!==0){
+            setGs({...rotated,phase:'ACTION',abilityData:{}});
+          }else{
+            setGs(rotated);
+          }
         }
       }
     });
