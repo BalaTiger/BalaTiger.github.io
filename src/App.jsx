@@ -505,8 +505,8 @@ function startNextTurn(gs){
       for(let _d=0;_d<extraDraws;_d++){
         const r2=playerDrawCard(P,D,Disc);P=r2.P;D=r2.D;Disc=r2.Disc;
         if(r2.drawnCard)L.push(`  摸到 [${r2.drawnCard.key||r2.drawnCard.name}]`);
-        if(r2.needGodChoice){return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true},drawReveal:null,selectedCard:null,globalOnlySwapOwner};}
-        if(r2.needsDecision){return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{},globalOnlySwapOwner};}
+        if(r2.needGodChoice){return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true,cthDrawsRemaining:extraDraws-_d-1},drawReveal:null,selectedCard:null,globalOnlySwapOwner};}
+        if(r2.needsDecision){return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{cthDrawsRemaining:extraDraws-_d-1},globalOnlySwapOwner};}
       }
     }
     // Skip the turn: advance past player to the next living player
@@ -5192,6 +5192,34 @@ export default function Game(){
   const huntAbandoned=gs.huntAbandoned||[];
 
   // ── Action handlers ────────────────────────────────────────
+  // CTH 「梦访拉莱耶」: after a draw decision (keep/discard/god) triggered while resting,
+  // process any remaining draws (cthDrawsRemaining) then advance the turn.
+  function _cthContinueRestDraws(baseGsAfterDecision){
+    let P=copyPlayers(baseGsAfterDecision.players),D=[...baseGsAfterDecision.deck],Disc=[...baseGsAfterDecision.discard],L=[...baseGsAfterDecision.log];
+    const remaining=baseGsAfterDecision.abilityData?.cthDrawsRemaining||0;
+    for(let _d=0;_d<remaining;_d++){
+      const r2=playerDrawCard(P,D,Disc);P=r2.P;D=r2.D;Disc=r2.Disc;
+      if(r2.drawnCard)L.push(`  摸到 [${r2.drawnCard.key||r2.drawnCard.name}]`);
+      if(r2.needGodChoice){
+        setGs({...baseGsAfterDecision,players:P,deck:D,discard:Disc,log:L,phase:'GOD_CHOICE',
+          abilityData:{godCard:r2.drawnCard,fromRest:true,cthDrawsRemaining:remaining-_d-1},drawReveal:null,selectedCard:null});
+        return;
+      }
+      if(r2.needsDecision){
+        setGs({...baseGsAfterDecision,players:P,deck:D,discard:Disc,log:L,phase:'DRAW_REVEAL',
+          drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},
+          selectedCard:null,abilityData:{cthDrawsRemaining:remaining-_d-1}});
+        return;
+      }
+      // forced card: already applied, continue
+    }
+    // All draws done — advance turn
+    const nextGs=P[0].hand.length>effectiveHandLimit
+      ?{...baseGsAfterDecision,players:P,deck:D,discard:Disc,log:L,phase:'DISCARD_PHASE',abilityData:{discardSelected:[]}}
+      :startNextTurn({...baseGsAfterDecision,players:P,deck:D,discard:Disc,log:L,currentTurn:0,abilityData:{}});
+    applyNextTurnGs(nextGs);
+  }
+
   function handleDrawConfirm(){
     setGs(p=>p?{...p,phase:'ACTION',drawReveal:null}:p);
   }
@@ -5211,6 +5239,8 @@ export default function Game(){
     }
     const win=checkWin(P,gs._isMP);if(win){setGs({...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,drawReveal:null,...(res.statePatch||{})});return;}
     const newGs={...gs,players:P,deck:D,discard:Disc,log:L,phase:'ACTION',drawReveal:null,abilityData:{},...(res.statePatch||{})};
+    // CTH fromRest: after keeping, process remaining draws then advance turn
+    if(dr.fromRest&&!win){_cthContinueRestDraws(newGs);return;}
     const queue=buildAnimQueue(gs,newGs);
     if(queue.length){
       pendingGsRef.current=newGs;
@@ -5225,6 +5255,8 @@ export default function Game(){
     const drawerIdx=dr.drawerIdx??0;
     const who=drawerIdx===0?'你':(dr.drawerName||gs.players[drawerIdx]?.name||'该角色');
     const newGs={...gs,discard:[...gs.discard,dr.card],log:[...gs.log,`${who} 弃置了 [${dr.card.key}] ${dr.card.name}`],phase:'ACTION',drawReveal:null,abilityData:{}};
+    // CTH fromRest: after discarding, process remaining draws then advance turn
+    if(dr.fromRest){_cthContinueRestDraws(newGs);return;}
     setGs(newGs);
   }
 
@@ -5525,6 +5557,8 @@ export default function Game(){
     const newGs={...gs,players:P,discard:Disc,log:L,phase:'ACTION',abilityData:{},
       godTriggeredThisTurn:consumesSlot,
       ...(win?{gameOver:win}:{})};
+    // CTH fromRest: after god choice, process remaining draws then advance turn
+    if(!win&&gs.abilityData?.fromRest){_cthContinueRestDraws(newGs);return;}
     setGs(newGs);
   }
 
@@ -5580,11 +5614,11 @@ export default function Game(){
         const r2=playerDrawCard(P,D,Disc);P=r2.P;D=r2.D;Disc=r2.Disc;
         if(r2.drawnCard)L.push(`  摸到 [${r2.drawnCard.key||r2.drawnCard.name}]`);
         if(r2.needGodChoice){
-          setGs({...baseGs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true},drawReveal:null,selectedCard:null});
+          setGs({...baseGs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true,cthDrawsRemaining:extraDraws-_d-1},drawReveal:null,selectedCard:null});
           return;
         }
         if(r2.needsDecision){
-          setGs({...baseGs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{}});
+          setGs({...baseGs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{cthDrawsRemaining:extraDraws-_d-1}});
           return;
         }
       }
@@ -5658,11 +5692,11 @@ export default function Game(){
         const r2=playerDrawCard(P,D,Disc);P=r2.P;D=r2.D;Disc=r2.Disc;
         if(r2.drawnCard)L.push(`  摸到 [${r2.drawnCard.key||r2.drawnCard.name}]`);
         if(r2.needGodChoice){
-          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true},drawReveal:null,selectedCard:null});
+          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true,cthDrawsRemaining:extraDraws-_d-1},drawReveal:null,selectedCard:null});
           return;
         }
         if(r2.needsDecision){
-          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{}});
+          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{cthDrawsRemaining:extraDraws-_d-1}});
           return;
         }
       }
@@ -5694,11 +5728,11 @@ export default function Game(){
         const r2=playerDrawCard(P,D,Disc);P=r2.P;D=r2.D;Disc=r2.Disc;
         if(r2.drawnCard)L.push(`  摸到 [${r2.drawnCard.key||r2.drawnCard.name}]`);
         if(r2.needGodChoice){
-          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true},drawReveal:null,selectedCard:null});
+          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:r2.drawnCard,fromRest:true,cthDrawsRemaining:extraDraws-_d-1},drawReveal:null,selectedCard:null});
           return;
         }
         if(r2.needsDecision){
-          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{}});
+          setGs({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'DRAW_REVEAL',drawReveal:{card:r2.drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:P[0].name,fromRest:true},selectedCard:null,abilityData:{cthDrawsRemaining:extraDraws-_d-1}});
           return;
         }
       }
