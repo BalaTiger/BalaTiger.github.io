@@ -574,7 +574,7 @@ function aiStep(gs){
       L.push(`${P[ct].name}（NYA Lv.${P[ct].godLevel}）千人千貌：本回合借用 [${borrow.role}]`);
     }
   }
-  const ai=P[ct];const alive=P.filter((p,i)=>!p.isDead&&i!==ct);
+  const ai=P[ct];let alive=P.filter((p,i)=>!p.isDead&&i!==ct);
   if(((gs.globalOnlySwapOwner!=null?'寻宝者':(ai._nyaBorrow||ai.role)))==='寻宝者'&&isWinHand(ai.hand)){P[ct].roleRevealed=true;return{...gs,players:P,log:[...L,`${ai.name} 宣告获胜！`],gameOver:{winner:'寻宝者',reason:`${ai.name} 集齐了全部编号并获胜！`,winnerIdx:ct}};}
   // AI worship-from-hand: face-down god cards in hand can be worshipped (no skull counter, once per turn)
   if(!gs.skillUsed&&!gs.restUsed){
@@ -1515,19 +1515,19 @@ function YourTurnAnim({name}){
 // GuillotineAnim now receives pre-measured targets from parent useEffect (same as HuntScope)
 function TitleCandleFlames(){
   const flames=[
-    {left:'10%',top:'16%',scale:0.72,dur:'4.4s',delay:'-0.8s',drift:'-7px'},
-    {left:'22%',top:'4%',scale:0.92,dur:'3.8s',delay:'-1.6s',drift:'8px'},
-    {left:'37%',top:'11%',scale:0.64,dur:'4.9s',delay:'-0.4s',drift:'-5px'},
-    {left:'64%',top:'2%',scale:1.02,dur:'3.6s',delay:'-2.2s',drift:'10px'},
-    {left:'81%',top:'15%',scale:0.76,dur:'4.1s',delay:'-1.1s',drift:'-8px'},
-    {left:'90%',top:'35%',scale:0.58,dur:'5.2s',delay:'-0.9s',drift:'7px'},
-    {left:'75%',top:'58%',scale:0.88,dur:'4.6s',delay:'-1.7s',drift:'-6px'},
-    {left:'52%',top:'69%',scale:0.62,dur:'3.9s',delay:'-0.5s',drift:'5px'},
-    {left:'26%',top:'63%',scale:0.82,dur:'4.8s',delay:'-2.4s',drift:'-9px'},
-    {left:'8%',top:'46%',scale:0.54,dur:'4.3s',delay:'-1.3s',drift:'6px'},
+    {left:'10%',top:'55%',scale:0.72,dur:'4.4s',delay:'-0.8s',drift:'-7px'},
+    {left:'22%',top:'43%',scale:0.92,dur:'3.8s',delay:'-1.6s',drift:'8px'},
+    {left:'37%',top:'50%',scale:0.64,dur:'4.9s',delay:'-0.4s',drift:'-5px'},
+    {left:'64%',top:'41%',scale:1.02,dur:'3.6s',delay:'-2.2s',drift:'10px'},
+    {left:'81%',top:'54%',scale:0.76,dur:'4.1s',delay:'-1.1s',drift:'-8px'},
+    {left:'90%',top:'74%',scale:0.58,dur:'5.2s',delay:'-0.9s',drift:'7px'},
+    {left:'75%',top:'92%',scale:0.88,dur:'4.6s',delay:'-1.7s',drift:'-6px'},
+    {left:'52%',top:'100%',scale:0.62,dur:'3.9s',delay:'-0.5s',drift:'5px'},
+    {left:'26%',top:'97%',scale:0.82,dur:'4.8s',delay:'-2.4s',drift:'-9px'},
+    {left:'8%',top:'85%',scale:0.54,dur:'4.3s',delay:'-1.3s',drift:'6px'},
   ];
   return(
-    <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'visible'}}>
+    <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'visible',zIndex:-1}}>
       {flames.map((f,i)=>(
         <div
           key={i}
@@ -1542,7 +1542,7 @@ function TitleCandleFlames(){
             '--flame-delay':f.delay,
             animation:'titleFlameSway var(--flame-duration) ease-in-out var(--flame-delay) infinite',
             transformOrigin:'50% 100%',
-            filter:'drop-shadow(0 0 18px rgba(255,170,70,0.34))',
+            filter:'drop-shadow(0 0 10px rgba(255,170,70,0.08))',
           }}
         >
           <div style={{
@@ -1553,18 +1553,20 @@ function TitleCandleFlames(){
             height:46,
             transform:'translate(-50%,-58%)',
             borderRadius:'50%',
-            background:'radial-gradient(circle, rgba(255,190,90,0.42) 0%, rgba(255,145,40,0.18) 40%, rgba(0,0,0,0) 76%)',
+            background:'radial-gradient(circle, rgba(255,190,90,0.06) 0%, rgba(255,145,40,0.02) 40%, rgba(0,0,0,0) 76%)',
             filter:'blur(6px)',
-            animation:'titleFlameGlow calc(var(--flame-duration) * 0.82) ease-in-out var(--flame-delay) infinite',
+            animation:'titleFlameGlow calc(var(--flame-duration) * 0.5) ease-in-out var(--flame-delay) infinite',
           }}/>
           <div style={{
             width:18,
             height:28,
             borderRadius:'55% 55% 60% 60% / 72% 72% 28% 28%',
-            background:'radial-gradient(ellipse at 50% 72%, rgba(255,248,214,0.95) 0%, rgba(255,223,140,0.92) 26%, rgba(255,170,58,0.92) 58%, rgba(255,96,18,0.82) 82%, rgba(255,96,18,0.05) 100%)',
-            boxShadow:'0 0 14px rgba(255,170,70,0.62), 0 0 28px rgba(255,106,24,0.3)',
+            background:'radial-gradient(ellipse at 50% 72%, rgba(255,248,214,0.12) 0%, rgba(255,223,140,0.10) 26%, rgba(255,170,58,0.10) 58%, rgba(255,96,18,0.05) 82%, rgba(255,96,18,0) 100%)',
+            boxShadow:'0 0 8px rgba(255,170,70,0.10), 0 0 16px rgba(255,106,24,0.03)',
             clipPath:'polygon(50% 0%, 72% 16%, 88% 42%, 82% 70%, 63% 100%, 38% 100%, 18% 72%, 12% 40%, 28% 14%)',
-            animation:'titleFlameFlicker calc(var(--flame-duration) * 0.52) linear var(--flame-delay) infinite',
+            maskImage:'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0) 75%)',
+            WebkitMaskImage:'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0) 75%)',
+            animation:'titleFlameFlicker calc(var(--flame-duration) * 0.3) linear var(--flame-delay) infinite',
           }}/>
           <div style={{
             position:'absolute',
@@ -1574,10 +1576,10 @@ function TitleCandleFlames(){
             height:13,
             transform:'translate(-50%,-50%)',
             borderRadius:'50%',
-            background:'radial-gradient(circle, rgba(255,255,245,1) 0%, rgba(255,246,206,0.94) 58%, rgba(255,241,180,0.0) 100%)',
+            background:'radial-gradient(circle, rgba(255,255,245,0.4) 0%, rgba(255,246,206,0.3) 58%, rgba(255,241,180,0.0) 100%)',
             filter:'blur(0.4px)',
-            opacity:0.92,
-            animation:'titleFlameCore calc(var(--flame-duration) * 0.68) ease-in-out var(--flame-delay) infinite',
+            opacity:0.4,
+            animation:'titleFlameCore calc(var(--flame-duration) * 0.55) ease-in-out var(--flame-delay) infinite',
           }}/>
         </div>
       ))}
@@ -1797,6 +1799,116 @@ function GuillotineAnim({targets}){
   );
 }
 
+// ── God Resurrection Animation (邪祀者 win) ────────────────────
+function GodResurrectionAnim({onConfirm}){
+  // Phase: 0=init, 1=darkness, 2=glow, 3=god form, 4=resurrection, 5=button shown
+  const [phase,setPhase]=useState(0);
+  const [fired,setFired]=useState(false);
+  useEffect(()=>{
+    if(fired)return;setFired(true);
+    const ts=[];
+    let t=300;
+    ts.push(setTimeout(()=>setPhase(1),t));t+=800; // darkness
+    ts.push(setTimeout(()=>setPhase(2),t));t+=1000; // glow
+    ts.push(setTimeout(()=>setPhase(3),t));t+=1200; // god form
+    ts.push(setTimeout(()=>setPhase(4),t));t+=1500; // resurrection
+    ts.push(setTimeout(()=>setPhase(5),t));        // button
+    return()=>ts.forEach(clearTimeout);
+  },[]);
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:4000,display:'flex',flexDirection:'column',
+      alignItems:'center',justifyContent:'center',
+      background:phase===1?'rgba(0,0,0,0.95)':phase===2?'rgba(20,0,30,0.92)':phase===3?'rgba(30,0,40,0.92)':phase===4?'rgba(40,0,50,0.92)':'rgba(4,3,1,0.92)',
+      backdropFilter:'blur(2px)',transition:'background 0.8s ease',
+      animation:'animFadeIn 0.35s ease-out'}}>
+      <div style={{textAlign:'center',marginBottom:32,animation:'animFadeIn 0.5s 0.1s both'}}>
+        <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:22,fontWeight:700,
+          letterSpacing:4,color:phase>=2?'#b03060':phase===1?'#602040':'#c8a96e',textShadow:phase>=2?'0 0 40px #b0306088':'0 0 40px #c8a96e88',marginBottom:6,
+          transition:'color 0.8s ease, text-shadow 0.8s ease'}}>
+          {phase===1?'✦ 黑暗降临 ✦':phase>=2?'✦ 邪神苏醒 ✦':'✦ 邪祀者获胜 ✦'}
+        </div>
+        <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
+          color:phase>=2?'#d06090':phase===1?'#804060':'#b89858',fontSize:13,letterSpacing:1,
+          transition:'color 0.8s ease'}}>
+          {phase===1?'万物陷入混沌...':phase>=2?'古神的力量正在觉醒...':'邪祀者的献祭唤醒了邪神！'}
+        </div>
+      </div>
+      {/* God Resurrection Effect */}
+      <div style={{position:'relative',width:300,height:300,marginBottom:32}}>
+        {/* Darkness effect */}
+        {phase===1&&(
+          <div style={{position:'absolute',inset:0,borderRadius:50,pointerEvents:'none',
+            background:'radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.95) 100%)',
+            animation:'animPulse 2s ease-in-out infinite',
+            zIndex:5}}/>
+        )}
+        {/* Glow effect */}
+        {phase>=2&&(
+          <div style={{position:'absolute',inset:-20,borderRadius:60,pointerEvents:'none',
+            background:'radial-gradient(circle, rgba(176,48,96,0.1) 0%, rgba(176,48,96,0.05) 40%, rgba(0,0,0,0) 76%)',
+            boxShadow:phase===2?'0 0 60px #b0306044, 0 0 120px #b0306022':
+              phase===3?'0 0 80px #b0306066, 0 0 160px #b0306044':
+              '0 0 100px #b0306088, 0 0 200px #b0306066',
+            transition:'all 1s ease',animation:phase===2?'animPop 0.8s ease-out':undefined,
+            zIndex:10}}/>
+        )}
+        {/* God form */}
+        {phase>=3&&(
+          <div style={{position:'absolute',inset:20,borderRadius:40,pointerEvents:'none',
+            background:'radial-gradient(ellipse at 50% 50%, rgba(176,48,96,0.3) 0%, rgba(128,32,64,0.6) 50%, rgba(64,16,32,0.9) 100%)',
+            boxShadow:'inset 0 0 40px rgba(176,48,96,0.5), 0 0 20px rgba(176,48,96,0.8)',
+            transition:'all 1s ease',animation:phase===3?'animPop 0.6s ease-out':undefined,
+            zIndex:15}}/>
+        )}
+        {/* Resurrection effect */}
+        {phase===4&&(
+          <div style={{position:'absolute',inset:0,borderRadius:50,pointerEvents:'none',
+            background:'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(176,48,96,0.2) 40%, rgba(0,0,0,0) 76%)',
+            boxShadow:'0 0 120px #ffffff44, 0 0 200px #b0306066',
+            animation:'animPulse 1.5s ease-in-out infinite',
+            zIndex:20}}/>
+        )}
+        {/* Eye of Cthulhu */}
+        {phase>=3&&(
+          <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
+            width:120,height:120,borderRadius:50,
+            background:'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 20%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,1) 100%)',
+            boxShadow:'0 0 30px rgba(255,255,255,0.8), 0 0 60px rgba(176,48,96,0.6)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            animation:phase===3?'animPop 0.4s ease-out':phase===4?'animPulse 2s ease-in-out infinite':undefined,
+            zIndex:25}}>
+            <div style={{width:40,height:40,borderRadius:50,
+              background:'rgba(0,0,0,0.9)',
+              boxShadow:'inset 0 0 10px rgba(0,0,0,0.8)',
+              animation:phase===4?'animPulse 1.5s ease-in-out infinite':undefined}}/>
+          </div>
+        )}
+      </div>
+      {/* Confirm button */}
+      {phase>=5&&(
+        <button onClick={onConfirm} style={{
+          padding:'12px 40px',
+          background:'#2a0818',
+          border:'2px solid #b03060',
+          color:'#e080b0',
+          fontFamily:"'Cinzel',serif",
+          fontWeight:700,
+          fontSize:13,
+          borderRadius:2,
+          cursor:'pointer',
+          letterSpacing:2,
+          textTransform:'uppercase',
+          boxShadow:'0 0 20px #b0306044',
+          transition:'all 0.2s ease',
+          animation:'animFadeIn 0.5s ease-out',
+        }}>
+          见证邪神的苏醒
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Treasure Map Win Animation (寻宝者 win, single unified impl) ─────────────
 function TreasureMapAnim({hand,onConfirm}){
   // Compute the minimal ordered set of cards that covers all 4 letters AND 4 numbers
@@ -1945,6 +2057,107 @@ function TreasureMapAnim({hand,onConfirm}){
           onMouseEnter={e=>{e.currentTarget.style.background='#2a1a08';e.currentTarget.style.boxShadow='0 0 50px #c8a96e88';}}
           onMouseLeave={e=>{e.currentTarget.style.background='#1c1008';e.currentTarget.style.boxShadow='0 0 30px #c8a96e55';}}
         >✦ 宣布胜利</button>
+      )}
+    </div>
+  );
+}
+
+// ── Cthulhu Resurrection Animation (邪祀者 win) ─────────────
+function CthulhuResurrectionAnim({onConfirm}){
+  // Phase: 0=init, 1=darkness, 2=tentacles emerge, 3=cthulhu appears, 4=glow, 5=button shown
+  const [phase,setPhase]=useState(0);
+  const [fired,setFired]=useState(false);
+  useEffect(()=>{
+    if(fired)return;setFired(true);
+    const ts=[];
+    let t=300;
+    ts.push(setTimeout(()=>setPhase(1),t));t+=1000; // darkness
+    ts.push(setTimeout(()=>setPhase(2),t));t+=1200; // tentacles emerge
+    ts.push(setTimeout(()=>setPhase(3),t));t+=1000; // cthulhu appears
+    ts.push(setTimeout(()=>setPhase(4),t));t+=800;  // glow
+    ts.push(setTimeout(()=>setPhase(5),t));        // button
+    return()=>ts.forEach(clearTimeout);
+  },[]);
+  const darkness=phase>=1;
+  const tentacles=phase>=2;
+  const cthulhu=phase>=3;
+  const glowing=phase>=4;
+  const btnVisible=phase>=5;
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:4000,display:'flex',flexDirection:'column',
+      alignItems:'center',justifyContent:'center',
+      background:darkness?'rgba(0,0,0,0.95)':'rgba(4,3,1,0.92)',
+      backdropFilter:'blur(3px)',transition:'background 0.5s ease',
+      animation:'animFadeIn 0.35s ease-out'}}>
+      <div style={{textAlign:'center',marginBottom:32,animation:'animFadeIn 0.5s 0.1s both'}}>
+        <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:22,fontWeight:700,
+          letterSpacing:4,color:'#9060cc',textShadow:'0 0 40px #9060cc88',marginBottom:6}}>
+          {phase===1?'✦ 黑暗降临 ✦':phase>=2?'✦ 邪神苏醒 ✦':'✦ 邪祀者获胜 ✦'}
+        </div>
+        <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',
+          color:'#7040aa',fontSize:13,letterSpacing:1}}>
+          {phase===1?'世界陷入黑暗...':phase>=2?'古老的存在正在苏醒...':'邪祀者的召唤成功了！'}
+        </div>
+      </div>
+      
+      {/* Cthulhu resurrection effect */}
+      <div style={{position:'relative',width:300,height:300,marginBottom:32}}>
+        {/* Tentacles */}
+        {tentacles&&(
+          <div style={{position:'absolute',inset:0}}>
+            {[...Array(8)].map((_,i)=>{
+              const angle=(i/8)*Math.PI*2;
+              const x=Math.cos(angle)*120+150;
+              const y=Math.sin(angle)*120+150;
+              return(
+                <div key={i} style={{
+                  position:'absolute',left:x,top:y,width:40,height:120,
+                  background:'linear-gradient(to top, #3a1a5a, #5a2a8a, #7a3aab)',
+                  borderRadius:'50% 50% 20% 20%',
+                  transformOrigin:'50% 100%',
+                  transform:`translate(-50%, 0) rotate(${angle}rad) scaleY(0)`,
+                  animation:`tentacleEmerge 1s ease-out ${i*0.1}s forwards`,
+                  boxShadow:'0 0 20px #9060cc88',
+                }}/>
+              );
+            })}
+          </div>
+        )}
+        
+        {/* Cthulhu head */}
+        {cthulhu&&(
+          <div style={{
+            position:'absolute',left:'50%',top:'50%',
+            transform:'translate(-50%, -50%) scale(0)',
+            animation:'animPop 0.8s ease-out forwards',
+            textAlign:'center',
+          }}>
+            <div style={{fontSize:120,filter:'drop-shadow(0 0 30px #9060ccaa)'}}>👁️</div>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:18,color:'#9060cc',
+              textShadow:'0 0 20px #9060cc88',marginTop:10}}>克苏鲁</div>
+          </div>
+        )}
+        
+        {/* Glow */}
+        {glowing&&(
+          <div style={{position:'absolute',inset:-50,borderRadius:'50%',pointerEvents:'none',
+            background:'radial-gradient(circle, rgba(144,96,204,0.2) 0%, rgba(58,26,90,0.1) 40%, rgba(0,0,0,0) 76%)',
+            boxShadow:'0 0 80px #9060cc88, 0 0 160px #9060cc44',
+            animation:'pulse 2s ease-in-out infinite',
+          }}/>
+        )}
+      </div>
+      
+      {btnVisible&&(
+        <button onClick={onConfirm}
+          style={{padding:'12px 44px',background:'#1a0d2e',border:'2px solid #9060cc',
+            color:'#c8a0e8',fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:14,
+            borderRadius:2,cursor:'pointer',letterSpacing:3,textTransform:'uppercase',
+            boxShadow:'0 0 30px #9060cc55',animation:'animPop 0.35s ease-out',
+            transition:'all .2s'}}
+          onMouseEnter={e=>{e.currentTarget.style.background='#2a1a3e';e.currentTarget.style.boxShadow='0 0 50px #9060cc88';}}
+          onMouseLeave={e=>{e.currentTarget.style.background='#1a0d2e';e.currentTarget.style.boxShadow='0 0 30px #9060cc55';}}
+        >✦ 见证胜利</button>
       )}
     </div>
   );
@@ -4031,10 +4244,25 @@ export default function Game(){
 
   // Auto-freeze game the instant player 寻宝者 has a winning hand
   useEffect(()=>{
-    if(!gs||gs.gameOver||gs.phase==='TREASURE_WIN'||gs.phase==='PLAYER_WIN_PENDING'||gs.phase==='SWAP_SELECT_TARGET'||gs.phase==='SWAP_GIVE_CARD'||showTutorial)return;
+    if(!gs||gs.gameOver||gs.phase==='TREASURE_WIN'||gs.phase==='PLAYER_WIN_PENDING'||gs.phase==='GOD_RESURRECTION'||gs.phase==='SWAP_SELECT_TARGET'||gs.phase==='SWAP_GIVE_CARD'||showTutorial)return;
     const p0=gs.players[0];
     if(p0&&!p0.isDead&&p0.role==='寻宝者'&&isWinHand(p0.hand)){
       setGs(g=>g?{...g,phase:'TREASURE_WIN'}:g);
+    }
+  },[gs]);
+
+  // Trigger god resurrection animation for cultist victory
+  useEffect(()=>{
+    if(!gs||gs.gameOver||gs.phase==='GOD_RESURRECTION'||showTutorial)return;
+    // Check if any player has SAN <= 0 (which would trigger cultist victory)
+    for(const p of gs.players){
+      if(!p.isDead&&p.san<=0){
+        const hasCultists=gs.players.some(q=>q.role==='邪祀者');
+        if(hasCultists){
+          setGs(g=>g?{...g,phase:'GOD_RESURRECTION'}:g);
+          return;
+        }
+      }
     }
   },[gs]);
 
@@ -5325,23 +5553,36 @@ export default function Game(){
   }
 
   function revealWin(){
-    if(!canWin)return;
     // Kill any running animation so we can't be overwritten by a stale pendingGs
     animQueueRef.current=[];
     pendingGsRef.current=null;
     setAnim(null);
     setGs(prev=>{
       if(!prev)return prev;
-      const winnerName=prev.players[0].name;
-      const defaultReason=prev._isMP?`${winnerName}集齐了全部编号并获胜！`:'你集齐了全部编号并获胜！';
-      const rawReason=prev.abilityData?.winReason||defaultReason;
-      // MP 下把「你」替换为实际玩家名，避免对其他观看者显示「你」
-      const reason=prev._isMP?rawReason.replace(/^你/,winnerName):rawReason;
-      return{...prev,
-        players:prev.players.map((p,i)=>i===0?{...p,roleRevealed:true,revealHand:true}:p),
-        drawReveal:null,
-        _pendingPlayerWin:undefined,
-        gameOver:{winner:'寻宝者',reason,winnerIdx:0}};
+      // Determine winner based on current phase
+      if(prev.phase==='GOD_RESURRECTION'){
+        // Cultist victory
+        const cultists=prev.players.filter(p=>p.role==='邪祀者');
+        const winnerNames=cultists.map(p=>p.name).join('、');
+        const reason=`邪神苏醒！邪祀者（${winnerNames}）获胜！`;
+        return{...prev,
+          players:prev.players.map(p=>({...p,roleRevealed:true,revealHand:true})),
+          drawReveal:null,
+          _pendingPlayerWin:undefined,
+          gameOver:{winner:'邪祀者',reason,winnerIdx:cultists[0]?.id}};
+      }else{
+        // Treasure hunter victory
+        const winnerName=prev.players[0].name;
+        const defaultReason=prev._isMP?`${winnerName}集齐了全部编号并获胜！`:'你集齐了全部编号并获胜！';
+        const rawReason=prev.abilityData?.winReason||defaultReason;
+        // MP 下把「你」替换为实际玩家名，避免对其他观看者显示「你」
+        const reason=prev._isMP?rawReason.replace(/^你/,winnerName):rawReason;
+        return{...prev,
+          players:prev.players.map((p,i)=>i===0?{...p,roleRevealed:true,revealHand:true}:p),
+          drawReveal:null,
+          _pendingPlayerWin:undefined,
+          gameOver:{winner:'寻宝者',reason,winnerIdx:0}};
+      }
     });
   }
 
@@ -5812,8 +6053,9 @@ export default function Game(){
         </div>
       </div>
       {/* ── Tutorial steps 2 & 3 (shown over game interface) ── */}
-      {/* ── Treasure Map Win Animation ── */}
+      {/* ── Win Animations ── */}
       {phase==='TREASURE_WIN'&&!showTutorial&&<TreasureMapAnim hand={me.hand} onConfirm={revealWin}/>}
+      {phase==='GOD_RESURRECTION'&&!showTutorial&&<CthulhuResurrectionAnim onConfirm={revealWin}/>}
       {showTutorial&&tutorialStep===2&&(()=>{
         const TW=Math.min(260,vw-20);
         const px=Math.max(8,Math.min(panelRect?panelRect.right+14:175,vw-TW-8));
@@ -6815,21 +7057,29 @@ const GLOBAL_STYLES=`
     100% {transform:translate(-50%,-50%) scale(var(--flame-scale,1)) rotate(-4deg)}
   }
   @keyframes titleFlameFlicker {
-    0%,100% {opacity:0.88; filter:brightness(0.94) saturate(0.96)}
-    18%     {opacity:1;    filter:brightness(1.18) saturate(1.1)}
-    39%     {opacity:0.76; filter:brightness(0.84) saturate(0.9)}
-    61%     {opacity:0.96; filter:brightness(1.08) saturate(1.08)}
-    82%     {opacity:0.8;  filter:brightness(0.9) saturate(0.94)}
+    0%,100% {opacity:0.1; filter:brightness(0.2) saturate(0.4)}
+    18%     {opacity:1;    filter:brightness(2.8) saturate(2.2)}
+    39%     {opacity:0.05; filter:brightness(0.1) saturate(0.3)}
+    61%     {opacity:1;    filter:brightness(2.5) saturate(2.0)}
+    82%     {opacity:0.1;  filter:brightness(0.2) saturate(0.4)}
   }
   @keyframes titleFlameGlow {
-    0%,100% {opacity:0.46; transform:translate(-50%,-58%) scale(0.92)}
-    45%     {opacity:0.72; transform:translate(-50%,-62%) scale(1.08)}
-    70%     {opacity:0.58; transform:translate(-50%,-56%) scale(0.98)}
+    0%,100% {opacity:0.1; transform:translate(-50%,-58%) scale(0.6)}
+    45%     {opacity:1;   transform:translate(-50%,-62%) scale(1.8)}
+    70%     {opacity:0.2; transform:translate(-50%,-56%) scale(0.7)}
   }
   @keyframes titleFlameCore {
-    0%,100% {opacity:0.82; transform:translate(-50%,-50%) scale(0.88)}
-    35%     {opacity:1;    transform:translate(-50%,-54%) scale(1.14)}
-    72%     {opacity:0.76; transform:translate(-50%,-48%) scale(0.92)}
+    0%,100% {opacity:0.2; transform:translate(-50%,-50%) scale(0.5)}
+    35%     {opacity:1;   transform:translate(-50%,-54%) scale(1.8)}
+    72%     {opacity:0.2; transform:translate(-50%,-48%) scale(0.6)}
+  }
+  @keyframes tentacleEmerge {
+    0%   {transform:translate(-50%, 0) scaleY(0); opacity:0}
+    100% {transform:translate(-50%, 0) scaleY(1); opacity:1}
+  }
+  @keyframes pulse {
+    0%,100% {opacity:0.6; transform:scale(1)}
+    50%     {opacity:1;   transform:scale(1.1)}
   }
 
   /* Discard card fly — hand (bottom-centre) → discard pile (centre-left area) */
