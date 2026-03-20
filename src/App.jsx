@@ -3651,6 +3651,7 @@ export default function Game(){
   const [showEmojiPicker,setShowEmojiPicker]=useState(false);
   const emojiQueueRef=useRef([]);           // 待发送 emoji 批次
   const emojiFlushTimerRef=useRef(null);    // 批量 flush 定时器
+  const emojiClickDebounceRef=useRef(null); // 防抖：防止短时间内重复点击
   const discardPileRef=useRef(null);        // 弃牌堆位置
 
   // ── Gamma / brightness ────────────────────────────────────────
@@ -3959,6 +3960,7 @@ export default function Game(){
 
   // 表情：点击 emoji → 加入批次队列 → 300ms 内 flush 打包发送
   function handleEmojiClick(emoji){
+    if(emojiClickDebounceRef.current)return;
     setShowEmojiPicker(false);
     if(!socketRef.current||!roomModalRef.current?.roomId)return;
     emojiQueueRef.current.push(emoji);
@@ -3967,11 +3969,15 @@ export default function Game(){
         const batch=[...emojiQueueRef.current];
         emojiQueueRef.current=[];
         emojiFlushTimerRef.current=null;
+        emojiClickDebounceRef.current=null;
         if(batch.length&&socketRef.current){
           socketRef.current.emit('emojiSend',{uuid:playerUUIDRef.current,roomId:roomModalRef.current.roomId,emojis:batch});
         }
       },300);
     }
+    emojiClickDebounceRef.current=setTimeout(()=>{
+      emojiClickDebounceRef.current=null;
+    },300);
   }
 
   // 关闭联机选项界面
@@ -5934,7 +5940,7 @@ export default function Game(){
             boxShadow:'0 4px 20px #00000088',zIndex:50,
           }}>
             {EMOJI_LIST.map(e=>(
-              <button key={e} onClick={()=>handleEmojiClick(e)} style={{
+              <button key={e} onClick={ev=>{ev.stopPropagation();handleEmojiClick(e);}} style={{
                 background:'none',border:'none',fontSize:20,cursor:'pointer',
                 padding:'3px 2px',borderRadius:3,lineHeight:1,
                 transition:'background 0.1s',
