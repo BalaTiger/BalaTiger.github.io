@@ -2409,12 +2409,12 @@ function PlayerPanel({player,isCurrentTurn,isSelectable,onSelect,showFaceUp,onCa
   const ri=RINFO[player.role];
   const borderColor=isBeingHit?'#cc2222':isSanHit?'#8840cc':isCurrentTurn?'#c8a96e':isSelectable?ri.col:'#3a2510';
   return(
-    <div onClick={!showFaceUp&&isSelectable?onSelect:undefined} style={{
+    <div onClick={isSelectable?onSelect:undefined} style={{
       background:isCurrentTurn?'#1c1408':'#140f08',
       border:`1.5px solid ${borderColor}`,
       boxShadow:isCurrentTurn?`0 0 20px #c8a96e22,inset 0 0 16px #c8a96e08`:isSelectable?`0 0 14px ${ri.col}44`:'none',
       borderRadius:3,padding:'8px 9px',
-      cursor:isSelectable&&!showFaceUp?'pointer':'default',
+      cursor:isSelectable?'pointer':'default',
       opacity:player.isDead?0.32:1,
       transition:'all .2s',
       position:'relative',
@@ -2430,7 +2430,7 @@ function PlayerPanel({player,isCurrentTurn,isSelectable,onSelect,showFaceUp,onCa
         <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:11,color:isCurrentTurn?'#e8c87a':'#c8a96e',letterSpacing:1}}>{player.name}</span>
         {(player.roleRevealed||player.isDead)&&<span style={{fontSize:10,color:ri.col,fontFamily:"'Cinzel',serif",letterSpacing:1,marginLeft:2}}>{ri.icon} {player.role}</span>}
         {player.isDead&&<span style={{fontSize:11,color:'#882020',marginLeft:'auto'}}>☠</span>}
-        {player.isResting&&!player.isDead&&<span style={{fontSize:9,color:'#4ade80',marginLeft:'auto',letterSpacing:1,filter:'drop-shadow(0 0 4px #4ade80)'}}>♥ 休息中</span>}
+        {player.isResting&&!player.isDead&&<span style={{fontSize:9,color:'#4ade80',marginLeft:'auto',letterSpacing:1,filter:'drop-shadow(0 0 4px #4ade80)'}}>♥ 翻面中</span>}
         {isCurrentTurn&&!player.isDead&&!player.isResting&&<span style={{fontSize:9,color:'#c8a96e',marginLeft:'auto',letterSpacing:1}}>▸ 行动</span>}
       </div>
       <StatBar label="HP"  val={player.hp}  color="#8b1515" trackColor="#1a0808"/>
@@ -2661,6 +2661,8 @@ function TargetSelectOverlay({drawReveal,phase,bewitchCard}){
     HUNT_SELECT_TARGET:'请点击目标角色以发动【追捕】',
     BEWITCH_SELECT_TARGET:'请选择蛊惑目标',
   }[phase]||'请选择目标';
+  // 掉包选择目标牌阶段不显示此遮罩
+  if(phase==='SWAP_SELECT_TARGET_CARD') return null;
   return(
     <>
       {/* Dark mask */}
@@ -4708,11 +4710,29 @@ export default function Game(){
   function swapSelectTarget(ti){
     if(!gs.players[ti].hand.length)return;
     let P=copyPlayers(gs.players);P[0].roleRevealed=true;
-    const ri2=0|Math.random()*P[ti].hand.length;
-    const taken=P[ti].hand.splice(ri2,1)[0];
+    const targetPlayer=P[ti];
+    // 如果目标玩家手牌公开，让玩家选择一张牌
+    if(targetPlayer.revealHand){
+      setGs({...gs,players:P,phase:'SWAP_SELECT_TARGET_CARD',
+        abilityData:{swapTi:ti,preSkillRevealed:gs.abilityData?.preSkillRevealed},
+        log:[...gs.log,`你（寻宝者）对 ${gs.players[ti].name} 【掉包】，请选择要抽取的牌`]});
+    }else{
+      // 否则随机抽取
+      const ri2=0|Math.random()*P[ti].hand.length;
+      const taken=P[ti].hand.splice(ri2,1)[0];
+      setGs({...gs,players:P,phase:'SWAP_GIVE_CARD',
+        abilityData:{swapTi:ti,takenCard:taken,preSkillRevealed:gs.abilityData?.preSkillRevealed},
+        log:[...gs.log,`你（寻宝者）对 ${gs.players[ti].name} 【掉包】，暗抽了1张牌`]});
+    }
+  }
+  function swapSelectTargetCard(cardIdx){
+    const{swapTi}=gs.abilityData;
+    let P=copyPlayers(gs.players);
+    const taken=P[swapTi].hand.splice(cardIdx,1)[0];
     setGs({...gs,players:P,phase:'SWAP_GIVE_CARD',
-      abilityData:{swapTi:ti,takenCard:taken},
-      log:[...gs.log,`你（寻宝者）对 ${gs.players[ti].name} 【掉包】，暗抽了1张牌`]});
+      abilityData:{...gs.abilityData,takenCard:taken},
+      log:[...gs.log,`你选择抽取了 [${taken.key}]`]}
+    );
   }
   function swapGiveCard(idx){
     const{swapTi,takenCard}=gs.abilityData;
@@ -5050,8 +5070,10 @@ export default function Game(){
     const heal=Math.max(d1,d2);
     let P=copyPlayers(gs.players);
     P[0].hp=clamp(P[0].hp+heal);
-    P[0].isResting=true;
-    let L=[...gs.log,`你选择【休息】，掷骰 ${d1}+${d2}，回复 ${heal}HP，翻面休息中`];
+    // Toggle resting state: if already resting, wake up; otherwise, go to rest
+    const wasResting=P[0].isResting;
+    P[0].isResting=!P[0].isResting;
+    let L=[...gs.log,`你选择【休息】，掷骰 ${d1}+${d2}，回复 ${heal}HP，${wasResting?'翻回正常状态':'翻面休息中'}`];
     const win=checkWin(P,gs._isMP);
     if(win){setGs({...gs,players:P,log:L,gameOver:win});return;}
     const oldGs={...gs,players:copyPlayers(gs.players)};
@@ -5264,7 +5286,7 @@ export default function Game(){
       // MP 下把「你」替换为实际玩家名，避免对其他观看者显示「你」
       const reason=prev._isMP?rawReason.replace(/^你/,winnerName):rawReason;
       return{...prev,
-        players:prev.players.map((p,i)=>i===0?{...p,roleRevealed:true}:p),
+        players:prev.players.map((p,i)=>i===0?{...p,roleRevealed:true,revealHand:true}:p),
         drawReveal:null,
         _pendingPlayerWin:undefined,
         gameOver:{winner:'寻宝者',reason,winnerIdx:0}};
@@ -5275,6 +5297,7 @@ export default function Game(){
   const phaseLabel={
     ACTION:               myTurn?'你的回合 — 可发动技能、休息，或结束回合':'等候其他旅者…',
     SWAP_SELECT_TARGET:   '【掉包】选择目标角色',
+    SWAP_SELECT_TARGET_CARD: `【掉包】${gs.players[gs.abilityData?.swapTi]?.name}的手牌已公开，请选择要抽取的牌`,
     SWAP_GIVE_CARD:       `暗抽到 [${gs.abilityData?.takenCard?.key}]，选一张手牌还给对方`,
     HUNT_SELECT_TARGET:   '【追捕】选择猎物',
     HUNT_CONFIRM:         myTurn?`[${gs.abilityData?.revCard?.key}] ${gs.abilityData?.revCard?.name} 已亮出！弃出匹配手牌造成2HP，或放弃`:(gs._isMP?'请等待追猎者做出选择…':`[${gs.abilityData?.revCard?.key}] 已亮出`),
@@ -5296,7 +5319,7 @@ export default function Game(){
 
   const selectingOther=['SWAP_SELECT_TARGET','HUNT_SELECT_TARGET','BEWITCH_SELECT_TARGET'].includes(phase);
   // 多人游戏中 HUNT_CONFIRM 非追猎者不显示操作按钮区域
-  const cancelable=['SWAP_SELECT_TARGET','SWAP_GIVE_CARD','HUNT_SELECT_TARGET',...(phase==='HUNT_CONFIRM'&&gs._isMP&&!myTurn?[]:['HUNT_CONFIRM']),'BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
+  const cancelable=['SWAP_SELECT_TARGET','SWAP_SELECT_TARGET_CARD','SWAP_GIVE_CARD','HUNT_SELECT_TARGET',...(phase==='HUNT_CONFIRM'&&gs._isMP&&!myTurn?[]:['HUNT_CONFIRM']),'BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
   // In HUNT_CONFIRM, 放弃追捕 replaces ✕取消 — never show both
   const showCancelBtn=cancelable&&phase!=='HUNT_CONFIRM'&&(!gs._isMP||myTurn);
 
@@ -5304,6 +5327,13 @@ export default function Game(){
   function handleAIClick(pi){
     if(gs.players[pi].isDead||isBlocked)return;
     if(phase==='SWAP_SELECT_TARGET')swapSelectTarget(pi);
+    else if(phase==='SWAP_SELECT_TARGET_CARD'){
+      // 在手牌公开状态下选择目标牌
+      if(pi===gs.abilityData?.swapTi){
+        // 点击的是目标玩家，显示其手牌供选择
+        return;
+      }
+    }
     else if(phase==='HUNT_SELECT_TARGET'){if(!huntAbandoned.includes(pi))huntSelectTarget(pi);}
     else if(phase==='BEWITCH_SELECT_TARGET')bewitchSelectTarget(pi);
   }
@@ -5403,10 +5433,6 @@ export default function Game(){
       {/* Animation overlay */}
       {!suppressAnim&&<AnimOverlay anim={anim} exiting={animExiting}/>}
       {/* Guillotine death animation — rendered outside filtered container, see below */}
-      {/* HP damage knife effect — flies from screen center to target */}
-      {!suppressAnim&&<KnifeEffect targets={knifeTargets}/>}
-      {/* SAN damage full-screen mist bolts */}
-      {!suppressAnim&&<SanMistOverlay targets={sanTargets}/>}
       {/* Skill overlays */}
       {!suppressAnim&&<SwapCupOverlay active={!!swapAnim} casterName={swapAnim?.casterName||''} targetName={swapAnim?.targetName||''}/>}
       {!suppressAnim&&<CardTransferOverlay transfers={cardTransfers}/>}
@@ -5483,9 +5509,13 @@ export default function Game(){
           {gs.players.slice(1).map((p,i)=>{
             const pi=i+1;
             const isSel=selectingOther&&!p.isDead&&!isBlocked&&!(phase==='HUNT_SELECT_TARGET'&&huntAbandoned.includes(pi));
+            // 在SWAP_SELECT_TARGET_CARD阶段，如果这是目标玩家，显示其手牌并允许选择
+            const isSwapTargetCardPhase=phase==='SWAP_SELECT_TARGET_CARD'&&gs.abilityData?.swapTi===pi;
+            const showFaceUpForSwap=isSwapTargetCardPhase||p.revealHand;
+            const onCardSelectForSwap=isSwapTargetCardPhase?((cardIdx)=>swapSelectTargetCard(cardIdx)):null;
             return(
               <div key={p.id} data-pid={pi} style={{position:'relative',zIndex:isSel?101:undefined,alignSelf:'start'}}>
-                <PlayerPanel player={p} isCurrentTurn={gs.currentTurn===pi} isSelectable={isSel} showFaceUp={p.revealHand} onSelect={()=>handleAIClick(pi)} onCardSelect={null} isBeingHit={hitIndices.includes(pi)} isSanHit={sanHitIndices.includes(pi)} isHpHeal={hpHealIndices.includes(pi)} isSanHeal={sanHealIndices.includes(pi)}/>
+                <PlayerPanel player={p} isCurrentTurn={gs.currentTurn===pi} isSelectable={isSel} showFaceUp={showFaceUpForSwap} onSelect={()=>handleAIClick(pi)} onCardSelect={onCardSelectForSwap} isBeingHit={hitIndices.includes(pi)} isSanHit={sanHitIndices.includes(pi)} isHpHeal={hpHealIndices.includes(pi)} isSanHeal={sanHealIndices.includes(pi)}/>
               </div>
             );
           })}
@@ -5501,7 +5531,7 @@ export default function Game(){
               <div ref={roleTextRef} style={{fontFamily:"'Cinzel',serif",color:'#7a5a2a',fontSize:9,letterSpacing:2,marginBottom:3,textTransform:'uppercase'}}>你的身份</div>
               <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:13,color:ri.col,textShadow:`0 0 12px ${ri.col}66`,letterSpacing:1}}>{ri.icon} {me.role}</div>
               <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#a07838',fontSize:10,marginTop:4,lineHeight:1.6}}>{ri.goal}</div>
-              {me.isResting&&<div style={{marginTop:4,fontSize:10,color:'#4ade80',fontFamily:"'Cinzel',serif",letterSpacing:1,filter:'drop-shadow(0 0 4px #4ade80)'}}>♥ 休息中 — 下回合跳过</div>}
+              {me.isResting&&<div style={{marginTop:4,fontSize:10,color:'#4ade80',fontFamily:"'Cinzel',serif",letterSpacing:1,filter:'drop-shadow(0 0 4px #4ade80)'}}>♥ 翻面中 — 下回合跳过</div>}
             {/* God zone display */}
             {(me.godEncounters||0)>0&&<div style={{marginTop:4,fontSize:10,color:'#8b6060',letterSpacing:1}}>{'💀'.repeat(Math.min(me.godEncounters,5))}{me.godEncounters>5?`×${me.godEncounters}`:''} 邪神遭遇</div>}
             {me.godName&&(me.godZone||[]).length>0&&(
@@ -6332,17 +6362,19 @@ export default function Game(){
       {phase==='PLAYER_WIN_PENDING'&&!showTutorial&&(
         <TreasureMapAnim hand={me.hand} onConfirm={()=>{
           setGs({...gs,
-            players:gs.players.map((p,i)=>i===0?{...p,roleRevealed:true}:p),
+            players:gs.players.map((p,i)=>i===0?{...p,roleRevealed:true,revealHand:true}:p),
             gameOver:{winner:'寻宝者',reason:gs.abilityData?.winReason||'你集齐了全部编号并获胜！',winnerIdx:0}});
         }}/>
       )}
       <GammaSlider gamma={gamma} onChange={handleGamma}/>
       <style>{GLOBAL_STYLES}</style>
     </div>
-    {/* Hunt/Bewitch/Guillotine overlays rendered OUTSIDE the filtered container */}
+    {/* Hunt/Bewitch/Guillotine/Knife/SanMist overlays rendered OUTSIDE the filtered container */}
     {!suppressAnim&&<HuntScopeOverlay active={!!huntAnim} cx={huntAnim?.cx??0} cy={huntAnim?.cy??0}/>}
     {!suppressAnim&&<BewitchEyeOverlay active={!!bewitchAnim} cx={bewitchAnim?.cx??0} cy={bewitchAnim?.cy??0}/>}
     {!suppressAnim&&guillotineTargets.length>0&&<GuillotineAnim targets={guillotineTargets}/>}
+    {!suppressAnim&&<KnifeEffect targets={knifeTargets}/>}
+    {!suppressAnim&&<SanMistOverlay targets={sanTargets}/>}
   </>);
 }
 // ══════════════════════════════════════════════════════════════
