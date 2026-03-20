@@ -529,6 +529,13 @@ function startNextTurn(gs){
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner};}
     if(res.needGodChoice){const win2=checkWin(P,gs._isMP);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],gameOver:win2,globalOnlySwapOwner};return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null,globalOnlySwapOwner};}
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
+    // 强制触发牌：效果已执行，直接进入 ACTION；drawReveal 保留卡牌供翻牌动画使用，但不广播 DRAW_REVEAL
+    if(res.kept){
+      return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
+        phase:'ACTION',
+        drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:false,forcedKeep:false,drawerIdx:0,drawerName:P[0].name},
+        selectedCard:null,abilityData:{},globalOnlySwapOwner,...(res.statePatch||{})};
+    }
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
       phase:'DRAW_REVEAL',
       drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:!!res.needsDecision,forcedKeep:!!res.forcedKeep,drawerIdx:0,drawerName:P[0].name},
@@ -543,6 +550,13 @@ function startNextTurn(gs){
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner};}
     if(res.needGodChoice){const win2=checkWin(P,true);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win2,globalOnlySwapOwner};return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null,_isMP:true,globalOnlySwapOwner};}
     const win=checkWin(P,true);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
+    // 强制触发牌：效果已执行，直接进入 ACTION；不向其他玩家广播 DRAW_REVEAL 界面
+    if(res.kept){
+      return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
+        phase:'ACTION',
+        drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:false,forcedKeep:false,drawerIdx:next,drawerName:P[next].name},
+        selectedCard:null,abilityData:{},_isMP:true,globalOnlySwapOwner,...(res.statePatch||{})};
+    }
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
       phase:'DRAW_REVEAL',
       drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:!!res.needsDecision,forcedKeep:!!res.forcedKeep,drawerIdx:next,drawerName:P[next].name},
@@ -3844,7 +3858,9 @@ export default function Game(){
         const nonSelfDraw=!rotated.gameOver&&rotated.currentTurn!==0&&(
           rotated.phase==='DRAW_REVEAL'||
           rotated.phase==='DRAW_SELECT_TARGET'||
-          rotated.phase==='GOD_CHOICE'
+          rotated.phase==='GOD_CHOICE'||
+          // Forced-card path: phase is ACTION but drawReveal.card still holds the card for animation
+          (rotated.phase==='ACTION'&&rotated.drawReveal?.card!=null&&rotated.drawReveal?.needsDecision===false&&rotated.drawReveal?.drawerIdx!=null&&rotated.drawReveal?.drawerIdx!==0)
         );
         if(nonSelfDraw){
           const drawnCard=rotated.phase==='GOD_CHOICE'
@@ -3867,7 +3883,8 @@ export default function Game(){
         }else if(!rotated.gameOver&&rotated.currentTurn===0&&(
           rotated.phase==='DRAW_REVEAL'||
           rotated.phase==='DRAW_SELECT_TARGET'||
-          rotated.phase==='GOD_CHOICE'
+          rotated.phase==='GOD_CHOICE'||
+          (rotated.phase==='ACTION'&&rotated.drawReveal?.card!=null&&rotated.drawReveal?.needsDecision===false)
         )){
           // 轮到自己时，同样需要播放 YOUR_TURN + DRAW_CARD 动画再解锁真实 phase
           const ph=rotated.phase;
@@ -5609,7 +5626,8 @@ export default function Game(){
     if(newGs._isMP&&newGs.currentTurn!==0){
       const ph=newGs.phase;
       const drawnCard=ph==='GOD_CHOICE'?newGs.abilityData?.godCard:newGs.drawReveal?.card;
-      if(drawnCard&&(ph==='DRAW_REVEAL'||ph==='GOD_CHOICE'||ph==='DRAW_SELECT_TARGET')){
+      // Also handle forced-card path (phase:'ACTION' but drawReveal.card set for animation)
+      if(drawnCard&&(ph==='DRAW_REVEAL'||ph==='GOD_CHOICE'||ph==='DRAW_SELECT_TARGET'||ph==='ACTION')){
         const drawerName=newGs.players[newGs.currentTurn]?.name||'???';
         const drawerPid=newGs.currentTurn;
         receivedGsRef.current=true; // 遮蔽态不对外广播；真实 gs 由 advanceQueue→setGs→useEffect([gs]) 正常广播
