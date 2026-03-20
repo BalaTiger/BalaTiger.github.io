@@ -2488,7 +2488,8 @@ function GodChoiceModal({godCard,player,onWorship,onKeepHand,onDiscard,isConvert
   const alreadyWorship=player.godName===godCard.godKey;
   const canUpgrade=alreadyWorship&&(player.godLevel||0)<3;
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(2,0,8,0.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,flexDirection:'column',gap:16}}>
+    // 修改了这里的 background 和 backdropFilter
+    <div style={{position:'fixed',inset:0,background:'rgba(2,0,8,0.45)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,flexDirection:'column',gap:16}}>
       <div style={{fontFamily:"'Cinzel',serif",color:'#e8cc88',fontSize:19.5,letterSpacing:2,marginBottom:4}}>
         {forcedConvert?'邪祀者强制改信——':'邪神降临——'}
         <span style={{color:def.col,filter:`drop-shadow(0 0 6px ${def.col}88)`}}>{godCard.name}</span>
@@ -2565,20 +2566,20 @@ function NyaBorrowModal({deadPlayers,godLevel,onBorrow,onSkip}){
 }
 
 // ── Draw Reveal Modal ─────────────────────────────────────────
-function DrawRevealModal({drawReveal,onKeep,onDiscard,canChoose,thinkingText}){
+function DrawRevealModal({drawReveal, onAccept, onDiscard, isBystander, activeName}){
   if(!drawReveal?.card)return null;
-  const{card,msgs,needsDecision}=drawReveal;
+  const{card,msgs}=drawReveal;
   const s=CS[card.letter]||GOD_CS;
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(2,1,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300}}>
+    // 修改了这里的 background 和 backdropFilter
+    <div style={{position:'fixed',inset:0,background:'rgba(2,1,0,0.45)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300}}>
       <div style={{
-        background:'#150e07',
-        border:`2px solid ${s.border}`,
+        background:'#150e07', border:`2px solid ${s.border}`,
         boxShadow:`0 0 60px ${s.glow}44, 0 0 120px #000a`,
         borderRadius:4,padding:'28px 34px',maxWidth:320,width:'92%',textAlign:'center',
         animation:'animPop 0.22s ease-out',
       }}>
-        <div style={{fontFamily:"'Cinzel',serif",color:'#a07838',fontSize:15,letterSpacing:3,marginBottom:16,textTransform:'uppercase'}}>── 命运降临 ──</div>
+        <div style={{fontFamily:"'Cinzel',serif",color:'#a07838',fontSize:15,letterSpacing:3,marginBottom:16,textTransform:'uppercase'}}>── 区域探寻 ──</div>
         {/* Big card */}
         <div style={{
           background:s.bg,border:`2px solid ${s.borderBright}`,
