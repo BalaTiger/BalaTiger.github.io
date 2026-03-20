@@ -5893,6 +5893,32 @@ export default function Game(){
       ))}
       {/* 点击外部关闭 emoji picker */}
       {showEmojiPicker&&<div onClick={()=>{console.log('[Emoji] Mask clicked, closing picker');setShowEmojiPicker(false);}} style={{position:'fixed',inset:0,zIndex:49}}/>}
+      {/* 表情选择器面板 - 与遮罩层同级，确保在遮罩层上方 */}
+      {isMultiplayer&&showEmojiPicker&&(()=>{
+        const btnRect=selfPanelRef.current?.getBoundingClientRect();
+        if(!btnRect)return null;
+        return(
+          <div style={{
+            position:'fixed',
+            top:btnRect.top+30,
+            left:btnRect.right-10-130,
+            background:'#140e04',border:'1.5px solid #4a3010',borderRadius:4,
+            padding:6,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:3,
+            boxShadow:'0 4px 20px #00000088',zIndex:50,
+          }}>
+            {EMOJI_LIST.map(e=>(
+              <button key={e} onClick={()=>handleEmojiClick(e)} style={{
+                background:'none',border:'none',fontSize:20,cursor:'pointer',
+                padding:'3px 2px',borderRadius:3,lineHeight:1,
+                transition:'background 0.1s',
+              }}
+              onMouseEnter={ev=>ev.currentTarget.style.background='#3a2010'}
+              onMouseLeave={ev=>ev.currentTarget.style.background='none'}
+              >{e}</button>
+            ))}
+          </div>
+        );
+      })()}
       {/* ── 断线遮罩（游戏内）── */}
       {isDisconnected&&(
         <div onClick={()=>{setIsDisconnected(false);setIsMultiplayer(false);isMultiplayerRef.current=false;setMyPlayerIndex(0);myPlayerIndexRef.current=0;mpRoleRevealedRef.current=false;setGs(null);}}
@@ -6045,31 +6071,6 @@ export default function Game(){
               </div>
             )}
           </div>
-          {/* 表情选择器面板 - 使用 fixed 定位脱离父容器层叠上下文 */}
-          {isMultiplayer&&showEmojiPicker&&(()=>{
-            const btnRect=selfPanelRef.current?.getBoundingClientRect();
-            return(
-              <div style={{
-                position:'fixed',
-                top:btnRect?btnRect.top+30:100,
-                right:btnRect?window.innerWidth-btnRect.right+btnRect.width-10:100,
-                background:'#140e04',border:'1.5px solid #4a3010',borderRadius:4,
-                padding:6,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:3,
-                boxShadow:'0 4px 20px #00000088',zIndex:5000,
-              }}>
-                {EMOJI_LIST.map(e=>(
-                  <button key={e} onClick={()=>handleEmojiClick(e)} style={{
-                    background:'none',border:'none',fontSize:20,cursor:'pointer',
-                    padding:'3px 2px',borderRadius:3,lineHeight:1,
-                    transition:'background 0.1s',
-                  }}
-                  onMouseEnter={ev=>ev.currentTarget.style.background='#3a2010'}
-                  onMouseLeave={ev=>ev.currentTarget.style.background='none'}
-                  >{e}</button>
-                ))}
-              </div>
-            );
-          })()}
           {/* Center: deck/discard piles */}
           <PileDisplay deckCount={gs.deck.length} discardCount={gs.discard.length} discardTop={gs.discard[gs.discard.length-1]||null} compact={isMobile} deckRef={deckAreaRef} discardRef={discardPileRef}/>
           {/* Log — narrow, right-aligned */}
