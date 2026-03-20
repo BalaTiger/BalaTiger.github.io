@@ -3879,13 +3879,20 @@ export default function Game(){
       // 错开发射时间，每条间隔 80ms
       emojis.forEach((emoji,i)=>{
         setTimeout(()=>{
-          // 发射起点：自己发的从 selfPanel，别人发的从屏幕顶部随机位置
+          // 发射起点：自己发的从屏幕左下角玩家区域，别人发的从屏幕顶部随机位置
           const isSelf=fromUuid===playerUUIDRef.current;
           let sx,sy;
           if(isSelf){
-            const r=selfPanelRef.current?.getBoundingClientRect();
-            sx=r?r.left+r.width/2:60;
-            sy=r?r.top+r.height*0.4:window.innerHeight/2;
+            // 从玩家手牌区域或左下角发射
+            const handRect=document.querySelector('[data-hand-area]')?.getBoundingClientRect();
+            if(handRect){
+              sx=handRect.left+handRect.width/2;
+              sy=handRect.top+handRect.height*0.3;
+            }else{
+              // 默认从左下角
+              sx=window.innerWidth*0.15;
+              sy=window.innerHeight*0.85;
+            }
           }else{
             sx=window.innerWidth*0.1+Math.random()*window.innerWidth*0.5;
             sy=60+Math.random()*40;
@@ -3963,18 +3970,12 @@ export default function Game(){
     if(emojiClickDebounceRef.current)return;
     emojiClickDebounceRef.current=Date.now();
     setShowEmojiPicker(false);
-    if(!socketRef.current||!roomModalRef.current?.roomId)return;
-    emojiQueueRef.current.push(emoji);
-    if(!emojiFlushTimerRef.current){
-      emojiFlushTimerRef.current=setTimeout(()=>{
-        const batch=[...emojiQueueRef.current];
-        emojiQueueRef.current=[];
-        emojiFlushTimerRef.current=null;
-        if(batch.length&&socketRef.current){
-          socketRef.current.emit('emojiSend',{uuid:playerUUIDRef.current,roomId:roomModalRef.current.roomId,emojis:batch});
-        }
-      },300);
+    if(!socketRef.current||!roomModalRef.current?.roomId){
+      setTimeout(()=>{emojiClickDebounceRef.current=null;},300);
+      return;
     }
+    // 立即发送，不使用队列，避免重复
+    socketRef.current.emit('emojiSend',{uuid:playerUUIDRef.current,roomId:roomModalRef.current.roomId,emojis:[emoji]});
     setTimeout(()=>{emojiClickDebounceRef.current=null;},300);
   }
 
@@ -5926,15 +5927,19 @@ export default function Game(){
       {/* 点击外部关闭 emoji picker */}
       {showEmojiPicker&&<div onClick={()=>setShowEmojiPicker(false)} style={{position:'fixed',inset:0,zIndex:49}}/>}
       {/* 表情选择器面板 - 与遮罩层同级，确保在遮罩层上方 */}
-      {isMultiplayer&&showEmojiPicker&&(
-        <div style={{
-          position:'fixed',
-          top:20,
-          right:20,
-          background:'#140e04',border:'1.5px solid #4a3010',borderRadius:4,
-          padding:6,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:3,
-          boxShadow:'0 4px 20px #00000088',zIndex:50,
-        }}>
+      {isMultiplayer&&showEmojiPicker&&(()=>{
+        const btnRect=emojiButtonRef.current?.getBoundingClientRect();
+        const top=btnRect?btnRect.bottom+8:70;
+        const right=btnRect?window.innerWidth-btnRect.right:20;
+        return(
+          <div style={{
+            position:'fixed',
+            top:top,
+            right:right,
+            background:'#140e04',border:'1.5px solid #4a3010',borderRadius:4,
+            padding:6,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:3,
+            boxShadow:'0 4px 20px #00000088',zIndex:50,
+          }}>
             {EMOJI_LIST.map(e=>(
               <button key={e} onClick={ev=>{ev.stopPropagation();handleEmojiClick(e);}} style={{
                 background:'none',border:'none',fontSize:20,cursor:'pointer',
@@ -5946,7 +5951,8 @@ export default function Game(){
               >{e}</button>
             ))}
           </div>
-      )}
+        );
+      })()}
       {/* ── 断线遮罩（游戏内）── */}
       {isDisconnected&&(
         <div onClick={()=>{setIsDisconnected(false);setIsMultiplayer(false);isMultiplayerRef.current=false;setMyPlayerIndex(0);myPlayerIndexRef.current=0;mpRoleRevealedRef.current=false;setGs(null);}}
@@ -6173,7 +6179,7 @@ export default function Game(){
         </div>
 
         {/* Hand area */}
-        <div ref={handAreaRef} style={{background:'#120900',border:`1.5px solid ${myTurn?'#3a2010':'#2a1a08'}`,borderRadius:3,padding:isMobile?'8px 9px':'11px 13px'}}>
+        <div ref={handAreaRef} data-hand-area style={{background:'#120900',border:`1.5px solid ${myTurn?'#3a2010':'#2a1a08'}`,borderRadius:3,padding:isMobile?'8px 9px':'11px 13px'}}>
           <div style={{display:'flex',alignItems:'center',marginBottom:9,gap:8}}>
             <span style={{fontFamily:"'Cinzel',serif",color:phase==='DISCARD_PHASE'||phase==='PLAYER_REVEAL_FOR_HUNT'?'#882020':'#3a2510',fontSize:10,letterSpacing:1}}>
               {phase==='DISCARD_PHASE'?`⚠ 手牌超限 (${me.hand.length}/${effectiveHandLimit})`:phase==='PLAYER_REVEAL_FOR_HUNT'?'⚠ 选择亮出一张区域牌':phase==='HUNT_WAIT_REVEAL'&&!myTurn&&gs.abilityData?.huntTi===0?'⚠ 选择亮出一张区域牌':`手牌 (${me.hand.length}/${effectiveHandLimit})`}
