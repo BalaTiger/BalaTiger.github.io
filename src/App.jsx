@@ -2925,10 +2925,11 @@ function NyaBorrowModal({deadPlayers,godLevel,onBorrow,onSkip}){
 }
 
 // ── Draw Reveal Modal ─────────────────────────────────────────
-function DrawRevealModal({drawReveal,onKeep,onDiscard,isBystander,activeName}){
+function DrawRevealModal({drawReveal,onKeep,onDiscard,canChoose,thinkingText}){
   if(!drawReveal?.card)return null;
   const{card,msgs}=drawReveal;
   const s=CS[card.letter]||GOD_CS;
+  const isBystander=!canChoose&&thinkingText;
   return(
     <div style={{position:'fixed',inset:0,display:'flex',alignItems:'flex-start',justifyContent:'center',zIndex:300,paddingTop:'10vh'}}>
       <div style={{
@@ -2952,7 +2953,7 @@ function DrawRevealModal({drawReveal,onKeep,onDiscard,isBystander,activeName}){
         
         {isBystander ? (
           <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontStyle:'italic',color:'#c8a96e',fontSize:15,marginTop:16}}>
-            等待 {activeName} 做出抉择...
+            {thinkingText}
           </div>
         ) : (
           <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap',marginTop:16}}>
@@ -3947,7 +3948,7 @@ export default function Game(){
         emojiQueueRef.current=[];
         emojiFlushTimerRef.current=null;
         if(batch.length&&socketRef.current){
-          socketRef.current.emit('emojiSend',{uuid:playerUUID,roomId:roomModal.roomId,emojis:batch});
+          socketRef.current.emit('emojiSend',{uuid:playerUUIDRef.current,roomId:roomModal.roomId,emojis:batch});
         }
       },300);
     }
