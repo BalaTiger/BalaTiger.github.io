@@ -3883,9 +3883,9 @@ export default function Game(){
           const isSelf=fromUuid===playerUUIDRef.current;
           let sx,sy;
           if(isSelf){
-            const el=document.querySelector('[data-pid="0"]');
-            const r=el?el.getBoundingClientRect():{left:60,top:window.innerHeight/2,width:120,height:120};
-            sx=r.left+r.width/2; sy=r.top+r.height*0.4;
+            const r=selfPanelRef.current?.getBoundingClientRect();
+            sx=r?r.left+r.width/2:60;
+            sy=r?r.top+r.height*0.4:window.innerHeight/2;
           }else{
             sx=window.innerWidth*0.1+Math.random()*window.innerWidth*0.5;
             sy=60+Math.random()*40;
@@ -3961,6 +3961,7 @@ export default function Game(){
   // 表情：点击 emoji → 加入批次队列 → 300ms 内 flush 打包发送
   function handleEmojiClick(emoji){
     if(emojiClickDebounceRef.current)return;
+    emojiClickDebounceRef.current=Date.now();
     setShowEmojiPicker(false);
     if(!socketRef.current||!roomModalRef.current?.roomId)return;
     emojiQueueRef.current.push(emoji);
@@ -3969,15 +3970,12 @@ export default function Game(){
         const batch=[...emojiQueueRef.current];
         emojiQueueRef.current=[];
         emojiFlushTimerRef.current=null;
-        emojiClickDebounceRef.current=null;
         if(batch.length&&socketRef.current){
           socketRef.current.emit('emojiSend',{uuid:playerUUIDRef.current,roomId:roomModalRef.current.roomId,emojis:batch});
         }
       },300);
     }
-    emojiClickDebounceRef.current=setTimeout(()=>{
-      emojiClickDebounceRef.current=null;
-    },300);
+    setTimeout(()=>{emojiClickDebounceRef.current=null;},300);
   }
 
   // 关闭联机选项界面
@@ -5934,7 +5932,7 @@ export default function Game(){
           <div style={{
             position:'fixed',
             top:btnRect.top+30,
-            left:btnRect.right-10-130,
+            right:window.innerWidth-btnRect.right+10,
             background:'#140e04',border:'1.5px solid #4a3010',borderRadius:4,
             padding:6,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:3,
             boxShadow:'0 4px 20px #00000088',zIndex:50,
