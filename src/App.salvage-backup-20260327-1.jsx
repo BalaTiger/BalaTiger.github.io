@@ -28,22 +28,22 @@ function Ellipsis() {
 //   Damage contribution: 6×(−2−1−8−4) = −90   [C2 hits 4 others = −8; D2 hits 1 = −4]
 // ──────────────────────────────────────────────────────────────────────────────
 const FIXED_ZONE_EFFECTS = {
-  A1:{pos:{name:'偷吃龙蛋',desc:'你回复2HP，相邻角色各失去2HP',type:'selfHealAdjDamageHP',val:2},negS:{name:'坠落',desc:'你失去3HP，随机弃1张牌（强制触发）',type:'selfDamageDiscardHP',val:3,forced:true},negA:{name:'惊扰蝙蝠',desc:'你与相邻角色失去1HP',type:'adjDamageHP',val:1}},
-  A2:{pos:{name:'蚂蚁虽小',desc:'你回复1HP',type:'selfHealHP',val:1},negS:{name:'遭遇塌方',desc:'你失去3HP并翻面（切换休息状态）',type:'selfDamageRestHP',val:3},negA:{name:'地刺陷阱',desc:'你与相邻角色失去3HP',type:'adjDamageHP',val:3}},
-  A3:{pos:{name:'吃下荧光苔藓',desc:'HP回满，手牌全局公开，盲抽变挑选',type:'selfRevealHandHP',val:10},negS:{name:'目击食人者',desc:'你失去1SAN，若你当前SAN≥8则额外失去2SAN',type:'selfDamageSANCond',val:1,bonus:2,condType:'sanHigh',condVal:8},negA:{name:'磷火',desc:'你与相邻角色失去1SAN',type:'adjDamageSAN',val:1}},
-  A4:{pos:{name:'绮丽诗篇',desc:'直到下回合，所有人技能变为“掉包”',type:'globalOnlySwap',val:0},negS:{name:'邪恶壁画',desc:'你失去3SAN',type:'selfDamageSAN',val:3},negA:{name:'空谷传音',desc:'全体存活角色失去1SAN',type:'allDamageSAN',val:1}},
-  B1:{pos:{name:'理智护符',desc:'你回复1SAN',type:'selfHealSAN',val:1},negS:{name:'忏悔独白',desc:'若信仰邪神则放弃信仰',type:'selfRenounceGod',val:1},negA:{name:'幽闭恐惧',desc:'你与相邻角色失去2SAN',type:'adjDamageSAN',val:2}},
+  A1:{pos:{name:'营地篝火',desc:'你回复2HP，相邻角色各失去2HP',type:'selfHealAdjDamageHP',val:2},negS:{name:'坠落',desc:'你失去3HP，随机弃1张牌（强制触发）',type:'selfDamageDiscardHP',val:3,forced:true},negA:{name:'毒气喷涌',desc:'你与相邻角色失去1HP',type:'adjDamageHP',val:1}},
+  A2:{pos:{name:'古代秘药',desc:'你回复1HP',type:'selfHealHP',val:1},negS:{name:'遭遇塌方',desc:'你失去3HP并翻面（切换休息状态）',type:'selfDamageRestHP',val:3},negA:{name:'地刺陷阱',desc:'你与相邻角色失去3HP',type:'adjDamageHP',val:3}},
+  A3:{pos:{name:'吃下荧光苔藓',desc:'HP回满，手牌全局公开，盲抽变挑选',type:'selfRevealHandHP',val:10},negS:{name:'理智动摇',desc:'你失去1SAN，若你当前SAN≥8则额外失去2SAN',type:'selfDamageSANCond',val:1,bonus:2,condType:'sanHigh',condVal:8},negA:{name:'邪恶低语',desc:'你与相邻角色失去1SAN',type:'adjDamageSAN',val:1}},
+  A4:{pos:{name:'绮丽诗篇',desc:'直到下回合，所有人技能变为“掉包”',type:'globalOnlySwap',val:0},negS:{name:'惊惧幻象',desc:'你失去3SAN',type:'selfDamageSAN',val:3},negA:{name:'灵魂尖啸',desc:'全体存活角色失去1SAN',type:'allDamageSAN',val:1}},
+  B1:{pos:{name:'理智护符',desc:'你回复1SAN',type:'selfHealSAN',val:1},negS:{name:'忏悔独白',desc:'若信仰邪神则放弃信仰',type:'selfRenounceGod',val:1},negA:{name:'绝望回声',desc:'你与相邻角色失去2SAN',type:'adjDamageSAN',val:2}},
   B2:{pos:{name:'强心剂',desc:'你回复2HP',type:'selfHealHP',val:2},negS:{name:'极度虚弱',desc:'你失去2SAN并翻面（切换休息状态）',type:'selfDamageRestSAN',val:2},negA:{name:'地动山摇',desc:'全体存活角色各随机弃1张牌（强制触发）',type:'allDiscard',val:1,forced:true}},
-  B3:{pos:{name:'猎获穴兽',desc:'你与相邻角色各回复3HP',type:'adjHealHP',val:3},negS:{name:'黑暗侵蚀',desc:'你失去2HP与1SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:1},negA:{name:'沉睡魔咒',desc:'你与相邻角色翻面（切换休息状态）',type:'adjRest',val:0}},
+  B3:{pos:{name:'互相包扎',desc:'你与相邻角色各回复3HP',type:'adjHealHP',val:3},negS:{name:'黑暗侵蚀',desc:'你失去2HP与1SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:1},negA:{name:'沉睡魔咒',desc:'你与相邻角色翻面（切换休息状态）',type:'adjRest',val:0}},
   B4:{pos:{name:'宁神香薰',desc:'你回复1SAN',type:'selfHealSAN',val:1},negS:{name:'落石砸击',desc:'你失去2HP，若你当前HP≤5则额外失去2HP',type:'selfDamageHPCond',val:2,bonus:2,condType:'hpLow',condVal:5},negA:{name:'两人一绳',desc:'你和另一名角色间架起链条，传导一次HP伤害后消失。你的下一回合开始时链条也会消失',type:'damageLink',val:1}},
-  C1:{pos:{name:'魅魔梦境',desc:'你回复2HP，失去1SAN',type:'selfHealHPSelfDamageSAN',hpVal:2,sanVal:1},negS:{name:'行囊破裂',desc:'你失去2HP与2SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:2},negA:{name:'毁灭风暴',desc:'全体存活角色失去3HP',type:'allDamageHP',val:3}},
+  C1:{pos:{name:'军用口粮',desc:'你回复1HP与1SAN',type:'selfHealBoth21',val:0},negS:{name:'行囊破裂',desc:'你失去2HP与2SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:2},negA:{name:'毁灭风暴',desc:'全体存活角色失去3HP',type:'allDamageHP',val:3}},
   C2:{pos:{name:'急救药包',desc:'你回复3HP',type:'selfHealHP',val:3},negS:{name:'毒液飞溅',desc:'你失去3HP与1SAN',type:'selfDamageHPSAN',hpVal:3,sanVal:1},negA:{name:'混乱气流',desc:'你与相邻角色各失去2HP',type:'adjDamageHP',val:2}},
-  C3:{pos:{name:'圣甲虫',desc:'你回复1HP与1SAN',type:'selfHealBoth',val:1},negS:{name:'惊慌失措',desc:'你失去2SAN，随机弃1张牌（强制触发）',type:'selfDamageDiscardSAN',val:2,forced:true},negA:{name:'瘟疫蔓延',desc:'你与相邻角色失去2HP和1SAN',type:'adjDamageBoth',hpVal:2,sanVal:1}},
-  C4:{pos:{name:'触底反弹',desc:'选择一名角色，与其交换全部手牌',type:'swapAllHands',val:0},negS:{name:'恶毒诅咒',desc:'你失去2HP与2SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:2},negA:{name:'末日预兆',desc:'全体存活角色失去1HP和1SAN',type:'allDamageBoth',val:1}},
-  D1:{pos:{name:'秤心仪式',desc:'你失去3HP，回复1SAN',type:'sacHealSelfSAN',val:1},negS:{name:'致命尖刺',desc:'你失去2HP，若你手牌数≥4则额外失去2HP',type:'selfDamageHPCond',val:2,bonus:2,condType:'handHigh',condVal:4},negA:{name:'钻地魔虫',desc:'全体存活角色失去1HP，然后随机选择一名角色失去1HP',type:'allDamageHPRandomExtra',val:1}},
+  C3:{pos:{name:'均衡灵药',desc:'你回复1HP与1SAN',type:'selfHealBoth',val:1},negS:{name:'惊慌失措',desc:'你失去2SAN，随机弃1张牌（强制触发）',type:'selfDamageDiscardSAN',val:2,forced:true},negA:{name:'瘟疫蔓延',desc:'你与相邻角色失去2HP和1SAN',type:'adjDamageBoth',hpVal:2,sanVal:1}},
+  C4:{pos:{name:'强征献礼',desc:'选择一名角色，与其交换全部手牌',type:'swapAllHands',val:0},negS:{name:'恶毒诅咒',desc:'你失去2HP与2SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:2},negA:{name:'末日预兆',desc:'全体存活角色失去1HP和1SAN',type:'allDamageBoth',val:1}},
+  D1:{pos:{name:'饮下清醒之泉',desc:'你回复3SAN，手牌全局公开，盲抽变挑选',type:'selfRevealHandSAN',val:3},negS:{name:'致命尖刺',desc:'你失去2HP，若你手牌数≥4则额外失去2HP',type:'selfDamageHPCond',val:2,bonus:2,condType:'handHigh',condVal:4},negA:{name:'狂风席卷',desc:'全体存活角色失去1HP',type:'allDamageHP',val:1}},
   D2:{pos:{name:'穴居人战争',desc:'你与另一名角色各亮一张手牌，数字编号更大的一方收下这两张牌',type:'caveDuel',val:0},negS:{name:'恐怖直视',desc:'你失去1SAN，若你手牌数≤2则额外失去2SAN',type:'selfDamageSANCond',val:1,bonus:2,condType:'handLow',condVal:2},negA:{name:'绝血侵蚀',desc:'你失去3HP，然后选一名角色偷看其一张手牌',type:'selfDamageHPPeek',val:3}},
-  D3:{pos:{name:'药王慈怀',desc:'你失去1SAN，全体回复1HP',type:'sacHealHP',val:1},negS:{name:'遗忘咒语',desc:'你失去2HP与1SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:1},negA:{name:'意志崩散',desc:'你失去3SAN',type:'selfDamageSAN',val:3}},
-  D4:{pos:{name:'禁忌狂化',desc:'你失去1SAN，直到回合结束，你造成的伤害+1',type:'selfBerserk',val:1},negS:{name:'扭伤',desc:'你失去1HP，下回合开始时你不能摸牌（强制触发）',type:'selfDamageSkipDraw',val:1,forced:true},negA:{name:'同归深渊',desc:'你失去2HP与2SAN，相邻角色各失去1HP与1SAN',type:'selfDamageAdjDamageBoth',hpVal:2,sanVal:2,adjHpVal:1,adjSanVal:1,forced:true}},
+  D3:{pos:{name:'献祭治愈',desc:'你失去1SAN，全体回复1HP',type:'sacHealHP',val:1},negS:{name:'遗忘咒语',desc:'你失去2HP与1SAN',type:'selfDamageHPSAN',hpVal:2,sanVal:1},negA:{name:'意志崩散',desc:'你失去3SAN',type:'selfDamageSAN',val:3}},
+  D4:{pos:{name:'禁忌狂化',desc:'你失去1SAN，直到回合结束，你造成的伤害+1',type:'selfBerserk',val:1},negS:{name:'陷阱触发',desc:'你失去3HP，随机弃1张牌（强制触发）',type:'selfDamageDiscardHP',val:3,forced:true},negA:{name:'理智崩坏',desc:'你失去3SAN',type:'selfDamageSAN',val:3}},
 };
 const ZONE_VARIANTS=['pos','negS','negA'];
 const LETTERS=['A','B','C','D'], NUMS=[1,2,3,4];
@@ -300,6 +300,17 @@ function estimateZoneCardKeepScore(card,ci,players){
     case 'selfRenounceGod':
       score=-(self.godName?2.8:1.4);
       break;
+    case 'caveDuel':
+      // 穴居人战争：有手牌时可能获得两张牌
+      score=self.hand.length>0?1.5:-0.5;
+      break;
+    case 'selfDamageHPPeek':
+      score=-card.val*1.8+0.5; // 有偷看手牌的正面效果
+      break;
+    case 'damageLink':
+      // 两人一绳：对追猎者有利（可以传导伤害）
+      score=self.role==='追猎者'?2.0:-1.0;
+      break;
     default:
       if(card.type.startsWith('allDamage')||card.type.startsWith('adjDamage')||card.type==='allDiscard'){
         if(self.role==='追猎者') score=2.4;
@@ -340,7 +351,6 @@ function applyFx(card,ci,ti,ps,deck,disc,avoidNegative=false,avoidNegativeFor=[]
     // 检查是否有伤害传导链条
     if(P[i].damageLink&&P[i].damageLink.active&&actualDamage>0){
       const partnerIdx=P[i].damageLink.partner;
-      // 传导伤害给链条另一端
       if(P[partnerIdx]&&!P[partnerIdx].isDead){
         // 先断开链条，避免无限循环
         P[i].damageLink.active=false;
@@ -500,14 +510,6 @@ function applyFx(card,ci,ti,ps,deck,disc,avoidNegative=false,avoidNegativeFor=[]
         }
       });
       break;
-    case 'selfHealHPSelfDamageSAN':
-      // 魅魔梦境：回复2HP，失去1SAN
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        healHP(ci,card.hpVal);
-        hurtSAN(ci,card.sanVal);
-        msgs.push(`${actor.name} 回复 ${card.hpVal} HP，失去 ${card.sanVal} SAN`);
-      }
-      break;
     case 'allDiscard': 
       // AOE负面效果：全体存活角色各随机弃1张牌
       // 支持规避：被规避的角色不会弃牌
@@ -544,23 +546,6 @@ function applyFx(card,ci,ti,ps,deck,disc,avoidNegative=false,avoidNegativeFor=[]
       healSAN(ci,card.val);
       msgs.push(`${actor.name} 回复 ${card.val} SAN`);
       break;
-    case 'selfDamageHPPeek': 
-      // 复合效果：负面效果（失去HP）+ 偷看一名角色的手牌
-      // 规避时所有效果都不触发
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        hurtHP(ci,card.val);
-        msgs.push(`${actor.name} 失去 ${card.val} HP`);
-        // 检查是否有除自己以外手牌未公开的角色
-        const validTargets=others.filter(i=>!P[i].revealHand);
-        if(validTargets.length>0){
-          // 设置状态补丁，用于触发偷看手牌的目标选择
-          statePatch={peekHandTargets:validTargets,peekHandSource:ci};
-          msgs.push(`${actor.name} 准备偷看一名角色的手牌`);
-        }else{
-          msgs.push(`所有其他角色的手牌都已公开，无法偷看`);
-        }
-      }
-      break;
     case 'swapAllHands':{
       // Swap entire hand with the target (ti); if no ti provided, pick the living player with most cards
       const swapTarget=ti!=null?ti:others.reduce((best,i)=>P[i].hand.length>P[best].hand.length?i:best,others[0]??ci);
@@ -584,63 +569,13 @@ function applyFx(card,ci,ti,ps,deck,disc,avoidNegative=false,avoidNegativeFor=[]
       P[ci].damageBonus=(P[ci].damageBonus||0)+1;
       msgs.push(`${actor.name} 本回合造成的伤害+1`);
       break;
-    case 'selfDamageSkipDraw': 
-      // 复合效果：负面效果（失去HP）+ 下回合开始时不能摸牌
-      // 规避时所有效果都不触发
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        hurtHP(ci,card.val);
-        msgs.push(`${actor.name} 失去 ${card.val} HP`);
-        // 设置跳过下回合摸牌的标记
-        P[ci].skipNextDraw=true;
-        msgs.push(`${actor.name} 下回合开始时不能摸牌`);
-      }
-      break;
-    case 'selfDamageAdjDamageBoth': 
-      // 复合效果：负面效果（失去HP和SAN）+ 相邻角色失去HP和SAN
-      // 规避时所有效果都不触发
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        const hv=card.hpVal||0,sv=card.sanVal||0;
-        hurtHP(ci,hv);
-        hurtSAN(ci,sv);
-        msgs.push(`${actor.name} 失去 ${hv} HP 和 ${sv} SAN`);
-        // 对相邻角色造成伤害
-        adjacent.forEach(i=>{
-          if(!avoidNegativeFor.includes(i)){
-            dealHP(i,card.adjHpVal||0);
-            dealSAN(i,card.adjSanVal||0);
-          }
-        });
-        msgs.push(`${actor.name} 周围的角色各失去 ${card.adjHpVal||0} HP 和 ${card.adjSanVal||0} SAN`);
-      }
-      break;
-    case 'allDamageHPRandomExtra':
-      // 钻地魔虫：全体存活角色失去1HP，然后随机选择一名角色失去1HP
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        // 全体存活角色失去1HP
-        P.forEach((p,i)=>{
-          if(!p.isDead&&!avoidNegativeFor.includes(i)){
-            dealHP(i,card.val);
-          }
-        });
-        msgs.push(`全体存活角色失去 ${card.val} HP`);
-        // 随机选择一名存活角色失去1HP
-        const alivePlayers=P.map((p,i)=>i).filter(i=>!P[i].isDead);
-        if(alivePlayers.length>0){
-          const randomTarget=alivePlayers[Math.floor(Math.random()*alivePlayers.length)];
-          dealHP(randomTarget,card.val);
-          msgs.push(`${P[randomTarget].name} 额外失去 ${card.val} HP`);
-        }
-      }
-      break;
     case 'damageLink':
       // 两人一绳：你和另一名角色间架起链条，传导一次HP伤害后消失。你的下一回合开始时链条也会消失
       if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        // 检查是否有其他存活角色
         const validTargets=others.filter(i=>!P[i].isDead);
         if(validTargets.length===0){
           msgs.push(`没有其他存活角色，无法架起链条`);
         }else{
-          // 设置状态补丁，用于触发两人一绳的目标选择
           statePatch={damageLinkTargets:validTargets,damageLinkSource:ci};
           msgs.push(`${actor.name} 准备使用两人一绳`);
         }
@@ -648,19 +583,24 @@ function applyFx(card,ci,ti,ps,deck,disc,avoidNegative=false,avoidNegativeFor=[]
       break;
     case 'caveDuel':
       // 穴居人战争：你与另一名角色各亮一张手牌，数字编号更大的一方收下这两张牌
-      // 隐藏规则：
-      // 1. 如果摸到"穴居人战争"之前没有牌，强制展示"穴居人战争"
-      // 2. 在选择另一名角色时，必须选有手牌的
-      // 3. 亮出的邪神牌视为数字编号为0
       if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        // 检查是否有其他有手牌的角色
         const validTargets=others.filter(i=>P[i].hand.length>0);
         if(validTargets.length===0){
           msgs.push(`没有其他角色有手牌，无法进行穴居人战争`);
         }else{
-          // 设置状态补丁，用于触发穴居人战争的目标选择
           statePatch={caveDuelTargets:validTargets,caveDuelSource:ci};
           msgs.push(`${actor.name} 准备进行穴居人战争`);
+        }
+      }
+      break;
+    case 'selfDamageHPPeek':
+      // 绝血侵蚀：你失去3HP，然后选一名角色偷看其一张手牌
+      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
+        hurtHP(ci,card.val);
+        msgs.push(`${actor.name} 失去 ${card.val} HP`);
+        const validTargets=others.filter(i=>P[i].hand.length>0);
+        if(validTargets.length>0){
+          statePatch={peekHandTargets:validTargets,peekHandSource:ci};
         }
       }
       break;
@@ -720,7 +660,18 @@ function checkWin(players,isMP){
       return{winner:'LOSE_ALL',reason:'所有探险者均已覆灭，无人幸存！全员失败！'};
     }
   }
-  // 3. Player death — single-player only (MP games continue when a player dies)
+  // 3. 场上只存活一人：如其为寻宝者，该寻宝者获胜；如其为邪祀者，邪祀者阵营获胜
+  const alivePlayers=players.filter(p=>!p.isDead);
+  if(alivePlayers.length===1){
+    const survivor=alivePlayers[0];
+    if(survivor.role==='寻宝者'){
+      return{winner:'寻宝者',reason:`场上仅存 ${survivor.name}（寻宝者），${survivor.name} 获胜！`};
+    }else if(survivor.role==='邪祀者'){
+      const ws=players.filter(q=>q.role==='邪祀者').map(q=>q.name).join('、');
+      return{winner:'邪祀者',reason:`场上仅存 ${survivor.name}（邪祀者），邪祀者阵营（${ws}）获胜！`};
+    }
+  }
+  // 4. Player death — single-player only (MP games continue when a player dies)
   if(!isMP&&players[0].isDead)return{winner:'LOSE',reason:'你已沉入永恒的黑暗…'};
   return null;
 }
@@ -731,13 +682,6 @@ function checkWin(players,isMP){
 // Resolve god encounter for an AI player (auto-decide worship/upgrade/discard/hand).
 // Note: SAN cost from encounter counter is applied BEFORE calling this.
 // forcedConvert=true means target already worships a different god (no choice, must switch).
-function shouldTriggerGodResurrection(gs){
-  if(!gs?.players?.length)return false;
-  const hasCultists=gs.players.some(p=>p.role==='邪祀者');
-  if(!hasCultists)return false;
-  return gs.players.some(p=>!p.isDead&&p.san<=0);
-}
-
 function resolveGodEncounterForAI(ci,godCard,P,Disc,forcedConvert){
   const msgs=[];const godKey=godCard.godKey;
   P=P.map(p=>({...p,godZone:[...(p.godZone||[])]})); // shallow copy godZone arrays
@@ -810,6 +754,8 @@ function handleCardDraw(ci, ps, deck, disc, isAI = false) {
       let L2 = [];
       const gr = aiHandleGodCard(ci, drawnCard, P, D, Disc, L2);
       P = gr.P; D = gr.D; Disc = gr.Disc;
+      const win2 = checkWin(P, false);
+      if (win2) return { P, D, Disc, drawnCard, effectMsgs: L2, _godWin: win2 };
       return { P, D, Disc, drawnCard, effectMsgs: L2, kept: true };
     } else {
       return { P, D, Disc, drawnCard,
@@ -823,14 +769,6 @@ function handleCardDraw(ci, ps, deck, disc, isAI = false) {
     const res = applyFx(drawnCard, ci, null, P, D, Disc);
     P = res.P; D = res.D; Disc = res.Disc; P[ci].hand.push(drawnCard);
     return { P, D, Disc, drawnCard, effectMsgs: [`${whoName} 摸到 [${drawnCard.key}] ${drawnCard.name}（强制触发）`, ...res.msgs], statePatch: res.statePatch, kept: true, needsDecision: false };
-  }
-  
-  // 穴居人战争隐藏规则1：如果摸到"穴居人战争"之前没有牌，强制展示"穴居人战争"
-  if (drawnCard.type === 'caveDuel' && P[ci].hand.length === 0) {
-    // 强制展示穴居人战争
-    P[ci].hand.push(drawnCard);
-    const logMsg = `${whoName} 摸到 [${drawnCard.key}] ${drawnCard.name}，之前没有牌，强制展示！`;
-    return { P, D, Disc, drawnCard, effectMsgs: [logMsg], kept: true, needsDecision: false };
   }
   
   // AI auto-decision
@@ -957,48 +895,33 @@ function startNextTurn(gs){
         return{...gs,players:P,deck:D,discard:Disc,log:[...L,'你的邪神之力「千人千貌」：可借用已死角色的身份'],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'NYA_BORROW',abilityData:{},drawReveal:null,selectedCard:null,globalOnlySwapOwner};
       }
     }
-    // 检查是否需要跳过摸牌
-    if(P[0].skipNextDraw){
-      delete P[0].skipNextDraw;
-      L.push('你因扭伤而无法摸牌');
-      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,turn:newTurn};
-      return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'ACTION',drawReveal:null,selectedCard:null,abilityData:{},globalOnlySwapOwner,turn:newTurn};
-    }
-    const _P_beforeDraw=copyPlayers(P);
     const res=playerDrawCard(P,D,Disc);
     P=res.P;D=res.D;Disc=res.Disc;
     // 多人游戏中记录玩家0摸牌信息到日志，让其他玩家可见（单机不需要，DRAW_REVEAL 时可见）
     if(gs._isMP&&res.drawnCard)L.push(`${P[0].name} 摸到 [${res.drawnCard.key}] ${res.drawnCard.name}`);
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner,turn:newTurn};}
-    if(res.needGodChoice){return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard,drawerIdx:0},drawReveal:null,selectedCard:null,globalOnlySwapOwner,_playersBeforeThisDraw:_P_beforeDraw,turn:newTurn};}
+    if(res.needGodChoice){const win2=checkWin(P,gs._isMP);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],gameOver:win2,globalOnlySwapOwner};return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard,drawerIdx:0},drawReveal:null,selectedCard:null,globalOnlySwapOwner};}
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,turn:newTurn};
     // 强制触发牌：效果已执行，直接进入 ACTION；drawReveal 保留卡牌供翻牌动画使用，但不广播 DRAW_REVEAL
     if(res.kept){
       return{...gs,players:P,deck:D,discard:Disc,log:[...L,...res.effectMsgs],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
         phase:'ACTION',
         drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:false,forcedKeep:false,drawerIdx:0,drawerName:P[0].name},
-        selectedCard:null,abilityData:{},globalOnlySwapOwner,_playersBeforeThisDraw:_P_beforeDraw,turn:newTurn,...(res.statePatch||{})};
+        selectedCard:null,abilityData:{},globalOnlySwapOwner,turn:newTurn,...(res.statePatch||{})};
     }
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,
       phase:'DRAW_REVEAL',
       drawReveal:{card:res.drawnCard,msgs:res.effectMsgs,needsDecision:!!res.needsDecision,forcedKeep:!!res.forcedKeep,drawerIdx:0,drawerName:P[0].name},
-      selectedCard:null,abilityData:{},globalOnlySwapOwner,_playersBeforeThisDraw:_P_beforeDraw,turn:newTurn};
+      selectedCard:null,abilityData:{},globalOnlySwapOwner,turn:newTurn};
   }else if(gs._isMP){
     // Multiplayer: next player is human — draw their card and enter DRAW_REVEAL
-    // 检查是否需要跳过摸牌
-    if(P[next].skipNextDraw){
-      delete P[next].skipNextDraw;
-      L.push(`${P[next].name} 因扭伤而无法摸牌`);
-      const win=checkWin(P,true);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-      return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'ACTION',drawReveal:null,selectedCard:null,abilityData:{},_isMP:true,globalOnlySwapOwner};
-    }
     const res=playerDrawCard(P,D,Disc,next);
     P=res.P;D=res.D;Disc=res.Disc;
     // 记录摸牌信息到日志（与单机AI摸牌保持一致：[key] 名称）
     if(res.drawnCard)L.push(`${P[next].name} 摸到 [${res.drawnCard.key}] ${res.drawnCard.name}`);
     if(res.effectMsgs.length)L.push(...res.effectMsgs);
     if(!res.drawnCard){L.push('牌堆耗尽！');return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'ACTION',drawReveal:null,abilityData:{},skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner};}
-    if(res.needGodChoice){return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null,_isMP:true,globalOnlySwapOwner};}
+    if(res.needGodChoice){const win2=checkWin(P,true);if(win2)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win2,globalOnlySwapOwner};return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:true,phase:'GOD_CHOICE',abilityData:{godCard:res.drawnCard},drawReveal:null,selectedCard:null,_isMP:true,globalOnlySwapOwner};}
     const win=checkWin(P,true);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
     // 强制触发牌：效果已执行，直接进入 ACTION；不向其他玩家广播 DRAW_REVEAL 界面
     if(res.kept){
@@ -1025,20 +948,56 @@ function startNextTurn(gs){
         L.push(`${P[next].name}（NYA Lv.${P[next].godLevel}）千人千貌：本回合借用 [${borrow.role}]`);
       }
     }
-    // 检查是否需要跳过摸牌
-    if(P[next].skipNextDraw){
-      delete P[next].skipNextDraw;
-      L.push(`${P[next].name} 因扭伤而无法摸牌`);
-      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-      return startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner});
-    }
     const _P_beforeDraw=copyPlayers(P);
     const res=aiDrawAndApply(next,P,D,Disc);
     P=res.P;D=res.D;Disc=res.Disc;if(res.effectMsgs.length)L.push(...res.effectMsgs);
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
     if(!P[next].isDead&&P[next].role==='寻宝者'&&isWinHand(P[next].hand)){P[next].roleRevealed=true;return{...gs,players:P,deck:D,discard:Disc,log:[...L,`${P[next].name} 集齐全部编号并获胜！`],gameOver:{winner:'寻宝者',reason:`${P[next].name} 集齐了全部编号并获胜！`,winnerIdx:next}};}
+    // AI自动处理需要选择目标的效果
+    if(res.statePatch?.damageLinkTargets){
+      const ti=res.statePatch.damageLinkTargets[Math.floor(Math.random()*res.statePatch.damageLinkTargets.length)];
+      const currentTurn=gs.turn||0;
+      P[next].damageLink={partner:ti,active:true,expiryTurn:currentTurn+1};
+      P[ti].damageLink={partner:next,active:true,expiryTurn:currentTurn+1};
+      L.push(`【两人一绳】${P[next].name} 与 ${P[ti].name} 间架起链条`);
+    }
+    if(res.statePatch?.caveDuelTargets){
+      const ti=res.statePatch.caveDuelTargets[Math.floor(Math.random()*res.statePatch.caveDuelTargets.length)];
+      const sourcePlayer=P[next];
+      const targetPlayer=P[ti];
+      if(sourcePlayer.hand.length>0&&targetPlayer.hand.length>0){
+        const sourceCardIdx=Math.floor(Math.random()*sourcePlayer.hand.length);
+        const targetCardIdx=Math.floor(Math.random()*targetPlayer.hand.length);
+        const sourceCard=sourcePlayer.hand[sourceCardIdx];
+        const targetCard=targetPlayer.hand[targetCardIdx];
+        const sourceNum=sourceCard.isGod?0:parseInt(sourceCard.key[1]);
+        const targetNum=targetCard.isGod?0:parseInt(targetCard.key[1]);
+        sourcePlayer.hand.splice(sourceCardIdx,1);
+        targetPlayer.hand.splice(targetCardIdx,1);
+        L.push(`【穴居人战争】${sourcePlayer.name} 亮出 [${sourceCard.key}]，${targetPlayer.name} 亮出 [${targetCard.key}]`);
+        if(sourceNum>targetNum){
+          sourcePlayer.hand.push(sourceCard,targetCard);
+          L.push(`${sourcePlayer.name} 的数字更大，收下两张牌`);
+        }else if(targetNum>sourceNum){
+          targetPlayer.hand.push(sourceCard,targetCard);
+          L.push(`${targetPlayer.name} 的数字更大，收下两张牌`);
+        }else{
+          sourcePlayer.hand.push(sourceCard);
+          targetPlayer.hand.push(targetCard);
+          L.push(`平局，各自收回`);
+        }
+      }
+    }
+    if(res.statePatch?.peekHandTargets){
+      const ti=res.statePatch.peekHandTargets[Math.floor(Math.random()*res.statePatch.peekHandTargets.length)];
+      if(P[ti].hand.length>0){
+        const cardIdx=Math.floor(Math.random()*P[ti].hand.length);
+        const peekedCard=P[ti].hand[cardIdx];
+        L.push(`【偷看手牌】${P[next].name} 偷看了 ${P[ti].name} 的 [${peekedCard.key}]`);
+      }
+    }
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'AI_TURN',drawReveal:null,selectedCard:null,abilityData:{},huntAbandoned:[],
-      _drawnCard:res.drawnCard??null,_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
+      _drawnCard:res.drawnCard??null,_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,globalOnlySwapOwner};
   }
 }
 
@@ -1094,11 +1053,9 @@ function aiStep(gs){
     P[ct].hp=clamp(P[ct].hp+heal);P[ct].isResting=true;
     L.push(`${ai.name} 选择【休息】，掷骰 ${d1}+${d2}，回复 ${heal}HP，翻面休息中`);
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-    const aiHandLimit=P[ct]._nyaHandLimit??4;
-    while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 [${c.key}]（上限）`);}
     const _P_afterRest=copyPlayers(P);
     const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,restUsed:true,skillUsed:false});
-    return{...nextGs,_aiDrawnCard:gs._drawnCard??nextGs._drawnCard??null,_aiName:ai.name,_playersBeforeNextDraw:_P_afterRest};
+    return{...nextGs,_aiDrawnCard:gs._drawnCard,_aiName:ai.name,_playersBeforeNextDraw:_P_afterRest};
   }
 // 追猎者/邪祀者积极发动技能(65%); 寻宝者随进度提升(35%→55%)
   const myNonGod=P[ct].hand.filter(c=>!c.isGod);
@@ -1159,7 +1116,7 @@ function aiStep(gs){
                   abilityData:{huntingAI:ct, aiHunterName:ai.name},
                   skillUsed:true, huntAbandoned: updatedAbandoned, _aiName:ai.name, _drawnCard:gs._drawnCard};
               } else {
-                const rc = aiChooseRevealCard(zoneH, P[ct].hand, L, Disc);
+                const rc = aiChooseRevealCard(zoneH, P[ct].hand);
                 L.push(`${ai.name}（追猎者）对 ${tgt.name} 【追捕】，亮出 [${rc.key}]`);
                 const mi = P[ct].hand.findIndex(c => c.letter === rc.letter || c.number === rc.number);
                 if (mi >= 0) {
@@ -1295,8 +1252,7 @@ function aiStep(gs){
     }
   }
   const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-  const aiHandLimit=P[ct]._nyaHandLimit??4;
-  while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 [${c.key}]（上限）`);}
+  while(P[ct].hand.length>4){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 [${c.key}]（上限）`);}
   
   const _P_afterAction=copyPlayers(P);
   let nextGs;
@@ -1310,7 +1266,7 @@ function aiStep(gs){
       nextGs = startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct, huntAbandoned: newAbandoned, skillUsed: (useSkill || gs.skillUsed)});
   }
 
-  return{...nextGs,_aiDrawnCard:gs._drawnCard??nextGs._drawnCard??null,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction};
+  return{...nextGs,_aiDrawnCard:gs._drawnCard,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction};
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2193,14 +2149,47 @@ function TitleCandleFlames() {
   );
 }
 
-// ── Slice Death Animation ────────────────────────────────
-// SliceAnim now receives pre-measured targets from parent useEffect (same as HuntScope)
+// ── Guillotine Death Animation ────────────────────────────────
+// GuillotineAnim now receives pre-measured targets from parent useEffect (same as HuntScope)
 function GuillotineAnim({targets}){
-  const[phase,setPhase]=React.useState('slice'); // slice, slide
+  const[phase,setPhase]=React.useState('falling');
+  const[fragments]=React.useState(()=>
+    Array.from({length:32},(_,i)=>{
+      const angle=-Math.PI*0.95+Math.random()*Math.PI*1.9;
+      const dist=56+Math.random()*176;
+      const lift=20+Math.random()*84;
+      return{
+        w:10+Math.random()*34,
+        h:7+Math.random()*22,
+        tx:Math.cos(angle)*dist,
+        ty:Math.sin(angle)*dist-lift,
+        rot:(Math.random()-0.5)*520,
+        delay:(i%8)*0.018+Math.floor(i/8)*0.008,
+        hue:Math.random()<0.3?38+Math.random()*12:3+Math.random()*18,
+        sat:72+Math.random()*24,
+        lit:Math.random()<0.3?58+Math.random()*16:42+Math.random()*18,
+        shape:`polygon(${14+Math.random()*18}% 0%, 100% ${12+Math.random()*22}%, ${78+Math.random()*22}% 100%, 0% ${72+Math.random()*18}%)`,
+      };
+    })
+  );
+  const[sparks]=React.useState(()=>
+    Array.from({length:20},(_,i)=>{
+      const angle=-Math.PI*0.9+Math.random()*Math.PI*1.8;
+      const dist=70+Math.random()*210;
+      return{
+        tx:Math.cos(angle)*dist,
+        ty:Math.sin(angle)*dist-(50+Math.random()*90),
+        delay:i*0.014,
+        dur:0.62+Math.random()*0.28,
+        size:2+Math.random()*3.4,
+      };
+    })
+  );
 
   React.useEffect(()=>{
-    const t1=setTimeout(()=>setPhase('slide'),500);
-    return()=>{clearTimeout(t1);};
+    const t1=setTimeout(()=>setPhase('impact'),540);
+    const t2=setTimeout(()=>setPhase('shatter'),620);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
   },[]);
 
   if(!targets||!targets.length)return null;
@@ -2209,59 +2198,163 @@ function GuillotineAnim({targets}){
     <div style={{position:'fixed',inset:0,zIndex:1400,pointerEvents:'none',overflow:'hidden'}}>
       {/* Dark vignette pulse */}
       <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0)',animation:'guillotineVig 2.5s ease-in-out forwards'}}/>
+      {/* Blood flash at impact */}
+      {phase==='impact'&&(
+        <div style={{position:'absolute',inset:0,
+          background:'radial-gradient(ellipse at center,rgba(180,10,10,0.55) 0%,rgba(80,0,0,0.25) 60%,transparent 100%)',
+          animation:'guillotineBloodFlash 0.35s ease-out forwards'}}/>
+      )}
       {targets.map((t,ti)=>{
+        // 断头台尺寸（以目标面板中心对齐）
+        const postW=9, bladeW=42, frameW=bladeW+postW*2;
+        const postLeft=t.cx-frameW/2;
+        const bladeLeft=t.cx-bladeW/2;
+        const bladeH=32;
+        // 斧刃从视口顶部上方开始，落至目标面板中心
+        const landY=t.cy-bladeH/2;
+        const startY=-bladeH-30;
+        const dy=landY-startY;
         return(
           <React.Fragment key={ti}>
-            {/* ── 切割效果 ── */}
-            {phase==='slice'&&(
+            {/* ── 两根竖立木柱（从顶端延伸到目标中心）── */}
+            {/* 左柱 */}
+            <div style={{
+              position:'absolute',left:postLeft,top:0,
+              width:postW,height:t.cy+postW,
+              background:'linear-gradient(90deg,#7a5028 0%,#3e1e08 45%,#7a5028 100%)',
+              boxShadow:'inset 0 0 3px rgba(0,0,0,0.5)',
+            }}/>
+            {/* 右柱 */}
+            <div style={{
+              position:'absolute',left:postLeft+bladeW+postW,top:0,
+              width:postW,height:t.cy+postW,
+              background:'linear-gradient(90deg,#7a5028 0%,#3e1e08 45%,#7a5028 100%)',
+              boxShadow:'inset 0 0 3px rgba(0,0,0,0.5)',
+            }}/>
+            {/* 顶部横梁 */}
+            <div style={{
+              position:'absolute',left:postLeft-4,top:0,
+              width:frameW+8,height:10,
+              background:'#5a3518',
+              boxShadow:'0 3px 10px rgba(0,0,0,0.8)',
+            }}/>
+            {/* 两柱接触地（目标面板）处的横档 */}
+            <div style={{
+              position:'absolute',left:postLeft,top:t.cy+postW-4,
+              width:frameW,height:8,
+              background:'#4a2e10',
+            }}/>
+
+            {/* ── 斧刃（无斧柄，夹在两柱之间，从顶部下落）── */}
+            {(phase==='falling'||phase==='impact')&&(
               <div style={{
                 position:'absolute',
-                left:t.x,top:t.y,width:t.w,height:t.h,
+                left:bladeLeft,
+                top:startY,
+                width:bladeW,
+                '--blade-dy':`${dy}px`,
+                animation:phase==='falling'
+                  ?'guillotineFall 0.54s cubic-bezier(0.45,0,0.9,0.85) forwards'
+                  :'none',
+                transform:phase==='impact'?`translateY(${dy}px)`:undefined,
               }}>
-                {/* 切割线 */}
-                <div style={{
-                  position:'absolute',
-                  left:-t.w,top:-t.h,width:t.w*3,height:t.h*3,
-                  transform:`rotate(30deg)`,
-                  background:'linear-gradient(90deg, transparent 0%, rgba(255,0,0,0.8) 50%, transparent 100%)',
-                  animation:'sliceEffect 0.5s ease-out forwards',
-                }}/>
-                {/* 切割闪光 */}
-                <div style={{
-                  position:'absolute',
-                  left:t.x-10,top:t.y-10,width:t.w+20,height:t.h+20,
-                  background:'radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(255,100,100,0.6) 50%, transparent 100%)',
-                  animation:'sliceFlash 0.3s ease-out forwards',
-                }}/>
-                {/* 血迹效果 */}
-                <div style={{
-                  position:'absolute',
-                  left:t.x-20,top:t.y-20,width:t.w+40,height:t.h+40,
-                  background:'radial-gradient(ellipse at center, rgba(180,10,10,0.4) 0%, rgba(80,0,0,0.1) 60%, transparent 100%)',
-                  animation:'bloodSpread 1s ease-out forwards',
-                }}/>
+                <svg width={bladeW} height={bladeH+20} viewBox={`0 0 ${bladeW} ${bladeH+20}`}
+                  style={{overflow:'visible',filter:'drop-shadow(0 4px 16px rgba(180,160,80,0.5))'}}>
+                  {/* 导槽卡扣（卡在左右木柱内侧）*/}
+                  <rect x="-3" y="2" width="5" height={bladeH-4} fill="#6a4020" rx="1" opacity="0.9"/>
+                  <rect x={bladeW-2} y="2" width="5" height={bladeH-4} fill="#6a4020" rx="1" opacity="0.9"/>
+                  {/* 刀身主体（矩形，无斧柄）*/}
+                  <rect x="2" y="0" width={bladeW-4} height={bladeH} fill="#808075" stroke="#505048" strokeWidth="1.5" rx="1"/>
+                  {/* 刀身竖纹（金属质感）*/}
+                  <line x1="6" y1="3" x2="6" y2={bladeH-3} stroke="rgba(255,255,255,0.12)" strokeWidth="1.5"/>
+                  <line x1={bladeW-6} y1="3" x2={bladeW-6} y2={bladeH-3} stroke="rgba(0,0,0,0.2)" strokeWidth="1"/>
+                  {/* 斜面切刃（右高左低，经典断头台样式）*/}
+                  <polygon
+                    points={`2,${bladeH} ${bladeW-2},${bladeH} ${bladeW-2},${bladeH+8} 2,${bladeH+18}`}
+                    fill="#b8b8a8" stroke="#787870" strokeWidth="1"/>
+                  {/* 刃口高光线 */}
+                  <line x1="2" y1={bladeH+18} x2={bladeW-2} y2={bladeH+8}
+                    stroke="#e0e0d0" strokeWidth="2" strokeLinecap="round"/>
+                  {/* 刀身顶部铆钉 */}
+                  <circle cx={bladeW*0.3} cy="6" r="2.5" fill="#5a5850" stroke="#303028" strokeWidth="0.8"/>
+                  <circle cx={bladeW*0.7} cy="6" r="2.5" fill="#5a5850" stroke="#303028" strokeWidth="0.8"/>
+                </svg>
               </div>
             )}
-            {/* ── 滑动效果 ── */}
-            {phase==='slide'&&(
+
+            {/* ── Impact flash ── */}
+            {phase==='impact'&&(
+              <div style={{
+                position:'absolute',
+                left:t.x-8,top:t.y-8,width:t.w+16,height:t.h+16,
+                background:'rgba(255,220,100,0.80)',borderRadius:4,
+                animation:'guillotineFlash 0.09s ease-out forwards',
+              }}/>
+            )}
+            {/* ── Shards ── */}
+            {phase==='shatter'&&(
               <>
-                {/* 上半部分 */}
                 <div style={{
                   position:'absolute',
-                  left:t.x,top:t.y,width:t.w,height:t.h,
-                  clipPath:`polygon(0 0, 100% 0, 100% 100%, 0 100%, calc(0% + (100% - 0%) * tan(30deg)) 0)`,
-                  background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
-                  animation:'slideUp 1s ease-out forwards',
+                  left:t.cx-16,top:t.cy-16,width:32,height:32,
+                  border:'2px solid rgba(255,170,90,0.86)',
+                  borderRadius:'50%',
+                  boxShadow:'0 0 18px rgba(255,120,40,0.55)',
+                  animation:'deathShockRing 0.58s ease-out forwards',
                 }}/>
-                {/* 下半部分 */}
                 <div style={{
                   position:'absolute',
-                  left:t.x,top:t.y,width:t.w,height:t.h,
-                  clipPath:`polygon(0 0, 100% 0, 100% 100%, 0 100%, calc(0% + (100% - 0%) * tan(30deg)) 100%)`,
-                  background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
-                  animation:'slideDown 1s ease-out forwards',
+                  left:t.x-18,top:t.y-18,width:t.w+36,height:t.h+36,
+                  background:'radial-gradient(ellipse at center, rgba(255,134,36,0.22) 0%, rgba(190,28,22,0.24) 34%, rgba(20,0,0,0) 78%)',
+                  filter:'blur(7px)',
+                  animation:'deathDustBloom 0.78s ease-out forwards',
                 }}/>
+                {fragments.map((s,si)=>(
+                  <div key={si} style={{
+                    position:'absolute',
+                    left:t.cx+(si%4-1.5)*8,
+                    top:t.cy+(si%3-1)*7,
+                    width:s.w,height:s.h,
+                    clipPath:s.shape,
+                    background:`linear-gradient(135deg, hsla(${s.hue},${s.sat}%,${Math.min(90,s.lit+18)}%,0.92), hsla(${s.hue},${s.sat}%,${s.lit}%,0.96) 52%, rgba(20,0,0,0.88) 100%)`,
+                    border:'1px solid rgba(255,210,170,0.34)',
+                    boxShadow:'0 0 16px rgba(255,84,42,0.34)',
+                    '--stx':`${s.tx}px`,'--sty':`${s.ty}px`,'--srot':`${s.rot}deg`,
+                    animation:`deathFragmentFly 0.92s cubic-bezier(0.12,0.62,0.24,1) ${s.delay}s forwards`,
+                    transformOrigin:'center',
+                  }}/>
+                ))}
+                {sparks.map((s,si)=>(
+                  <div key={`spark-${si}`} style={{
+                    position:'absolute',
+                    left:t.cx,
+                    top:t.cy,
+                    width:s.size,height:s.size,
+                    borderRadius:'50%',
+                    background:'radial-gradient(circle, rgba(255,245,214,0.98) 0%, rgba(255,186,84,0.94) 42%, rgba(255,92,26,0.1) 100%)',
+                    boxShadow:'0 0 10px rgba(255,170,80,0.9)',
+                    '--stx':`${s.tx}px`,'--sty':`${s.ty}px`,
+                    animation:`deathSparkFly ${s.dur}s ease-out ${s.delay}s forwards`,
+                  }}/>
+                ))}
               </>
+            )}
+            {/* ── Panel crack overlay ── */}
+            {phase==='shatter'&&(
+              <div style={{
+                position:'absolute',left:t.x,top:t.y,width:t.w,height:t.h,
+                border:'1.5px solid rgba(255,116,64,0.42)',borderRadius:5,
+                animation:'panelRupture 0.9s ease-out forwards',
+                background:'linear-gradient(135deg, rgba(255,210,140,0.18), rgba(170,24,20,0.36) 48%, rgba(32,0,0,0.04) 100%)',
+                boxShadow:'0 0 34px rgba(210,32,26,0.28), inset 0 0 24px rgba(255,182,120,0.12)',
+              }}>
+                <svg width={t.w} height={t.h} style={{position:'absolute',inset:0,overflow:'visible'}}>
+                  <path d={`M ${t.w*0.52} 0 L ${t.w*0.23} ${t.h*0.46} L ${t.w*0.06} ${t.h}`} stroke="rgba(255,208,150,0.92)" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+                  <path d={`M ${t.w*0.5} ${t.h*0.06} L ${t.w*0.86} ${t.h*0.42} L ${t.w*0.94} ${t.h*0.92}`} stroke="rgba(255,114,72,0.88)" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+                  <path d={`M 0 ${t.h*0.34} L ${t.w*0.36} ${t.h*0.52} L ${t.w*0.68} ${t.h*0.58} L ${t.w} ${t.h*0.48}`} stroke="rgba(180,18,18,0.72)" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+                  <path d={`M ${t.w*0.35} ${t.h} L ${t.w*0.54} ${t.h*0.68} L ${t.w*0.66} ${t.h*0.18}`} stroke="rgba(255,170,108,0.72)" strokeWidth="1.35" fill="none" strokeLinecap="round"/>
+                </svg>
+              </div>
             )}
           </React.Fragment>
         );
@@ -3474,11 +3567,11 @@ function TargetSelectOverlay({drawReveal,phase,bewitchCard}){
   const phaseHint={
     DRAW_SELECT_TARGET:'请点击目标角色以施加牌效',
     SWAP_SELECT_TARGET:'请点击目标角色以发动【掉包】',
-    PEEK_HAND_SELECT_TARGET:'请点击目标角色以偷看其一张手牌',
     HUNT_SELECT_TARGET:'请点击目标角色以发动【追捕】',
     BEWITCH_SELECT_TARGET:'请选择蛊惑目标',
-    CAVE_DUEL_SELECT_TARGET:'请选择一名有手牌的角色进行【穴居人战争】',
     DAMAGE_LINK_SELECT_TARGET:'请选择一名角色建立【两人一绳】链条',
+    CAVE_DUEL_SELECT_TARGET:'请选择一名有手牌的角色进行【穴居人战争】',
+    PEEK_HAND_SELECT_TARGET:'请选择一名角色偷看其一张手牌',
   }[phase]||'请选择目标';
   // 掉包选择目标牌阶段不显示此遮罩
   if(phase==='SWAP_SELECT_TARGET_CARD') return null;
@@ -5070,7 +5163,7 @@ export default function Game(){
       // If AI is hunting player 0, pause here for player input (after draw card anim)
       if(newGs.phase==='PLAYER_REVEAL_FOR_HUNT'){
         const queue=[];
-        if(rawResult._aiDrawnCard) queue.push({type:'DRAW_CARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
         triggerAnimQueue(queue,newGs);
         return;
       }
@@ -5086,9 +5179,9 @@ export default function Game(){
       // 1. Banner anim: 'YOUR_TURN' equivalent for AI — shown via gs.phase=AI_TURN before queue
       //    (no explicit anim needed; the static UI banner shows when !anim)
       // 2. Draw card anim for THIS AI (card drawn at turn start, stored in gs._drawnCard)
-      if(rawResult._aiDrawnCard) queue.push({type:'DRAW_CARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+      if(gs._drawnCard) queue.push({type:'DRAW_CARD',card:gs._drawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
       // 2b. Stat changes caused by THIS AI's drawn card (draw effects: gs._playersBeforeThisDraw → gs.players)
-      if(gs._playersBeforeThisDraw&&rawResult._aiDrawnCard){
+      if(gs._playersBeforeThisDraw&&gs._drawnCard){
         const drawEffectQ=buildAnimQueue(fakeGs(gs._playersBeforeThisDraw),gs);
         queue.push(...drawEffectQ);
       }
@@ -5162,7 +5255,7 @@ export default function Game(){
     if(!room?.roomId)return;
     const rawGs=derotateGs(gs,myPlayerIndexRef.current);
     socketRef.current.emit('mpStateSync',{roomId:room.roomId,gs:rawGs});
-  },[gs,anim,showTutorial]);
+  },[gs]);
 
   // Auto-freeze game the instant player 寻宝者 has a winning hand
   useEffect(()=>{
@@ -5171,30 +5264,22 @@ export default function Game(){
     if(p0&&!p0.isDead&&p0.role==='寻宝者'&&isWinHand(p0.hand)){
       setGs(g=>g?{...g,phase:'TREASURE_WIN'}:g);
     }
-  },[gs,anim,showTutorial]);
+  },[gs]);
 
   // Trigger god resurrection animation for cultist victory
   useEffect(()=>{
     if(!gs||gs.gameOver||gs.phase==='GOD_RESURRECTION'||showTutorial)return;
-    if(!shouldTriggerGodResurrection(gs))return;
     // Check if any player has SAN <= 0 (which would trigger cultist victory)
     for(const p of gs.players){
       if(!p.isDead&&p.san<=0){
         const hasCultists=gs.players.some(q=>q.role==='邪祀者');
         if(hasCultists){
-          const hasPendingAnim=!!anim||animQueueRef.current.length>0||!!pendingGsRef.current;
-          if(hasPendingAnim){
-            if(!gs._pendingGodResurrection){
-              setGs(g=>g?{...g,_pendingGodResurrection:true}:g);
-            }
-          }else{
-            setGs(g=>g?{...g,phase:'GOD_RESURRECTION',_pendingGodResurrection:undefined}:g);
-          }
+          setGs(g=>g?{...g,phase:'GOD_RESURRECTION'}:g);
           return;
         }
       }
     }
-  },[gs,anim,showTutorial]);
+  },[gs]);
 
   // isBlocked 提升到 useEffect 之前，避免依赖数组 TDZ 报错
   const isBlocked=!!anim||showTutorial;
@@ -6300,9 +6385,9 @@ export default function Game(){
     }
     // 保留abilityData中的fromRest和cthDrawsRemaining信息
     const newGs={...gs,players:P,deck:D,discard:Disc,log:L,phase:'ACTION',drawReveal:null,abilityData:gs.abilityData,...(res.statePatch||{})};
-    // 检查是否需要偷看手牌
-    if(res.statePatch?.peekHandTargets){
-      setGs({...newGs,phase:'PEEK_HAND_SELECT_TARGET',abilityData:{peekHandTargets:res.statePatch.peekHandTargets,peekHandSource:res.statePatch.peekHandSource}});
+    // 检查是否需要进行两人一绳
+    if(res.statePatch?.damageLinkTargets){
+      setGs({...newGs,phase:'DAMAGE_LINK_SELECT_TARGET',abilityData:{damageLinkTargets:res.statePatch.damageLinkTargets,damageLinkSource:res.statePatch.damageLinkSource}});
       return;
     }
     // 检查是否需要进行穴居人战争
@@ -6310,9 +6395,9 @@ export default function Game(){
       setGs({...newGs,phase:'CAVE_DUEL_SELECT_TARGET',abilityData:{caveDuelTargets:res.statePatch.caveDuelTargets,caveDuelSource:res.statePatch.caveDuelSource}});
       return;
     }
-    // 检查是否需要进行两人一绳
-    if(res.statePatch?.damageLinkTargets){
-      setGs({...newGs,phase:'DAMAGE_LINK_SELECT_TARGET',abilityData:{damageLinkTargets:res.statePatch.damageLinkTargets,damageLinkSource:res.statePatch.damageLinkSource}});
+    // 检查是否需要偷看手牌
+    if(res.statePatch?.peekHandTargets){
+      setGs({...newGs,phase:'PEEK_HAND_SELECT_TARGET',abilityData:{peekHandTargets:res.statePatch.peekHandTargets,peekHandSource:res.statePatch.peekHandSource}});
       return;
     }
     // CTH fromRest: after keeping, process remaining draws then advance turn
@@ -6534,83 +6619,6 @@ export default function Game(){
     if(fromRest){_cthContinueRestDraws(newGs);return;}
     setGs(newGs);
   }
-  function peekHandSelectTarget(ti){
-    // 偷看手牌：选择目标角色后，偷看其一张手牌
-    const {peekHandTargets}=gs.abilityData;
-    if(!peekHandTargets||!peekHandTargets.includes(ti))return;
-    let P=copyPlayers(gs.players);
-    const targetPlayer=P[ti];
-    // 随机选择一张手牌偷看
-    const randomIndex=Math.floor(Math.random()*targetPlayer.hand.length);
-    const peekedCard=targetPlayer.hand[randomIndex];
-    // 记录偷看的信息到日志
-    let L;
-    if(gs._isMP){
-      // 联机对战：显示通用日志，不包含具体卡牌信息
-      L=[...gs.log,`${gs.players[0].name} 偷看了 ${targetPlayer.name} 的一张手牌`];
-    }else{
-      // 单机游戏：显示具体卡牌信息
-      L=[...gs.log,`你偷看了 ${targetPlayer.name} 的一张手牌：[${peekedCard.key}] ${peekedCard.name}`];
-    }
-    // 切换回 ACTION 阶段
-    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
-  }
-  function caveDuelSelectTarget(ti){
-    // 穴居人战争：选择目标角色后，双方各亮一张手牌，数字编号更大的一方收下这两张牌
-    const {caveDuelTargets,caveDuelSource}=gs.abilityData;
-    if(!caveDuelTargets||!caveDuelTargets.includes(ti))return;
-    let P=copyPlayers(gs.players);
-    const sourcePlayer=P[caveDuelSource];
-    const targetPlayer=P[ti];
-    // 检查目标角色是否有手牌
-    if(targetPlayer.hand.length===0){
-      return;
-    }
-    // 双方各随机选择一张手牌亮出
-    const sourceCardIndex=Math.floor(Math.random()*sourcePlayer.hand.length);
-    const targetCardIndex=Math.floor(Math.random()*targetPlayer.hand.length);
-    const sourceCard=sourcePlayer.hand[sourceCardIndex];
-    const targetCard=targetPlayer.hand[targetCardIndex];
-    // 计算数字编号（邪神牌视为0）
-    const sourceNumber=sourceCard.isGod?0:(sourceCard.number||0);
-    const targetNumber=targetCard.isGod?0:(targetCard.number||0);
-    // 比较数字编号
-    let L;
-    if(sourceNumber>targetNumber){
-      // 源角色获胜，收下两张牌
-      sourcePlayer.hand.splice(sourceCardIndex,1);
-      targetPlayer.hand.splice(targetCardIndex,1);
-      sourcePlayer.hand.push(sourceCard,targetCard);
-      L=[...gs.log,`【穴居人战争】${sourcePlayer.name} 亮出 [${sourceCard.key}] ${sourceCard.name}，${targetPlayer.name} 亮出 [${targetCard.key}] ${targetCard.name}，${sourcePlayer.name} 胜出，收下两张牌`];
-    }else if(targetNumber>sourceNumber){
-      // 目标角色获胜，收下两张牌
-      sourcePlayer.hand.splice(sourceCardIndex,1);
-      targetPlayer.hand.splice(targetCardIndex,1);
-      targetPlayer.hand.push(sourceCard,targetCard);
-      L=[...gs.log,`【穴居人战争】${sourcePlayer.name} 亮出 [${sourceCard.key}] ${sourceCard.name}，${targetPlayer.name} 亮出 [${targetCard.key}] ${targetCard.name}，${targetPlayer.name} 胜出，收下两张牌`];
-    }else{
-      // 平局，各自收回自己的牌
-      L=[...gs.log,`【穴居人战争】${sourcePlayer.name} 亮出 [${sourceCard.key}] ${sourceCard.name}，${targetPlayer.name} 亮出 [${targetCard.key}] ${targetCard.name}，平局，各自收回自己的牌`];
-    }
-    // 切换回 ACTION 阶段
-    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
-  }
-  function damageLinkSelectTarget(ti){
-    // 两人一绳：选择目标角色后，建立伤害传导链条
-    const {damageLinkTargets,damageLinkSource}=gs.abilityData;
-    if(!damageLinkTargets||!damageLinkTargets.includes(ti))return;
-    let P=copyPlayers(gs.players);
-    const sourcePlayer=P[damageLinkSource];
-    const targetPlayer=P[ti];
-    // 建立链条：在两名玩家之间建立伤害传导关系
-    // 使用damageLink字段存储链条信息：{partner: 对方索引, active: 是否激活, expiryTurn: 过期回合}
-    const currentTurn=gs.turn||0;
-    sourcePlayer.damageLink={partner:ti,active:true,expiryTurn:currentTurn+1};
-    targetPlayer.damageLink={partner:damageLinkSource,active:true,expiryTurn:currentTurn+1};
-    const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.name} 间架起链条，一方受到HP伤害时另一方受等量伤害`];
-    // 切换回 ACTION 阶段
-    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
-  }
   function swapSelectTargetCard(cardIdx){
     const{swapTi}=gs.abilityData;
     let P=copyPlayers(gs.players);
@@ -6674,113 +6682,17 @@ export default function Game(){
   }
 
   // AI 亮牌策略：选择与追猎者手牌匹配度最低的区域牌（降低被击中概率）
-  function aiChooseRevealCard(targetHand, hunterHand, log, discardPile){
+  function aiChooseRevealCard(targetHand,hunterHand){
     const zoneCards=targetHand.filter(c=>!c.isGod);
     if(!zoneCards.length)return targetHand[0]; // fallback
-    
-    // 分析游戏日志和弃牌堆，计算每张区域牌的安全分数
+    // 计算每张牌被追猎者匹配（字母或编号相同）的风险
     const scored=zoneCards.map(c=>{
-      let safetyScore=0;
-      
-      // 1. 查看游戏日志里有没有该追猎者收入手牌后，从未进入弃牌堆的区域牌
-      const hunterCardsInHand=[];
-      log.forEach(entry=>{
-        if(entry.includes('摸到') && entry.includes('[') && entry.includes(']')){
-          const cardMatch=entry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            // 检查这张牌是否被弃掉
-            const wasDiscarded=log.some(logEntry=>logEntry.includes('弃 [') && logEntry.includes(cardKey) && logEntry.includes(']'));
-            if(!wasDiscarded){
-              // 解析牌的字母和数字
-              const letterMatch=cardKey.match(/[A-Z]/);
-              const numberMatch=cardKey.match(/\d+/);
-              if(letterMatch && numberMatch){
-                hunterCardsInHand.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
-              }
-            }
-          }
-        }
-      });
-      
-      // 避免展示跟这些牌同字母同数字的区域牌
-      const isSimilarToHunterCard=hunterCardsInHand.some(hc=>hc.letter===c.letter||hc.number===c.number);
-      if(!isSimilarToHunterCard){
-        safetyScore+=3;
-      }
-      
-      // 2. 查看历史追捕记录
-      let recentHuntEntries=[];
-      log.forEach((entry,index)=>{
-        if(entry.includes('追捕') && entry.includes('亮出')){
-          // 找到最近的追捕记录
-          recentHuntEntries.push({entry,index});
-        }
-      });
-      
-      // 按时间倒序排序
-      recentHuntEntries.sort((a,b)=>b.index-a.index);
-      
-      // 检查最近一次追捕是否放弃
-      if(recentHuntEntries.length>0){
-        const lastHuntEntry=recentHuntEntries[0].entry;
-        if(lastHuntEntry.includes('亮出') && !lastHuntEntry.includes('受')){
-          // 追捕者放弃了追捕
-          const cardMatch=lastHuntEntry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            const letterMatch=cardKey.match(/[A-Z]/);
-            const numberMatch=cardKey.match(/\d+/);
-            if(letterMatch && numberMatch){
-              const revealedCard={letter:letterMatch[0],number:parseInt(numberMatch[0])};
-              if(revealedCard.letter===c.letter||revealedCard.number===c.number){
-                safetyScore+=2;
-              }
-            }
-          }
-        }
-      }
-      
-      // 3. 查看从追猎者手牌进入弃牌堆的那些牌
-      const discardedHunterCards=[];
-      log.forEach(entry=>{
-        if(entry.includes('弃 [') && entry.includes(']')){
-          const cardMatch=entry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            const letterMatch=cardKey.match(/[A-Z]/);
-            const numberMatch=cardKey.match(/\d+/);
-            if(letterMatch && numberMatch){
-              discardedHunterCards.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
-            }
-          }
-        }
-      });
-      
-      // 计算每种字母/数字的弃牌次数
-      const letterCount={};
-      const numberCount={};
-      discardedHunterCards.forEach(card=>{
-        letterCount[card.letter]=(letterCount[card.letter]||0)+1;
-        numberCount[card.number]=(numberCount[card.number]||0)+1;
-      });
-      
-      // 某种字母/数字编号弃掉的牌越多，有这个编号的区域牌越安全
-      safetyScore+=letterCount[c.letter]||0;
-      safetyScore+=numberCount[c.number]||0;
-      
-      return{c,safetyScore};
+      const matched=hunterHand.filter(h=>h.letter===c.letter||h.number===c.number).length;
+      return{c,matched};
     });
-    
-    // 按安全分数从高到低排序
-    scored.sort((a,b)=>b.safetyScore-a.safetyScore);
-    
-    // 如果有多个安全分数相同的牌，随机选择一张
-    const maxScore=scored[0].safetyScore;
-    const bestCards=scored.filter(s=>s.safetyScore===maxScore);
-    const randomIndex=Math.floor(Math.random()*bestCards.length);
-    
-    return bestCards[randomIndex].c;
+    // 按风险从低到高排序，选最安全的一张
+    scored.sort((a,b)=>a.matched-b.matched);
+    return scored[0].c;
   }
 
   function huntSelectTarget(ti){
@@ -6800,7 +6712,7 @@ export default function Game(){
       return;
     }
     // 单机/AI目标：由AI策略选择最优亮牌
-    const rc=aiChooseRevealCard(P[ti].hand,P[0].hand,gs.log,gs.discard);
+    const rc=aiChooseRevealCard(P[ti].hand,P[0].hand);
     const huntConfirmGs={...gs,players:P,phase:'HUNT_CONFIRM',
       abilityData:{...(gs.abilityData||{}),huntTi:ti,revCard:rc},
       log:[...gs.log,`你（追猎者）追捕 ${P[ti].name}，${P[ti].name} 亮出 [${rc.key}] ${rc.name}`]};
@@ -6823,18 +6735,8 @@ export default function Game(){
         P[huntTi].isDead=true;P[huntTi].roleRevealed=true;L.push(`☠ ${P[huntTi].name}（${P[huntTi].role}）倒下了！`);
         if(P[huntTi].hand.length){
           if(P[huntTi].revealHand){
-            // 先播放死亡特效，然后再进入选择手牌的阶段
-            const deathGs={...gs,players:P,log:L};
-            const queue=buildAnimQueue(gs,deathGs);
-            if(queue.length){
-              // 动画播放完成后进入选择手牌的阶段
-              triggerAnimQueue(queue,{...deathGs,phase:'HUNT_SELECT_CARD_FROM_PUBLIC',abilityData:{huntTi:huntTi,preSkillRevealed:gs.abilityData?.preSkillRevealed},
-                log:[...L,`你（追猎者）从 ${P[huntTi].name} 的公开手牌中任选一张！`]});
-            }else{
-              // 没有动画时直接进入选择手牌的阶段
-              setGs({...gs,players:P,phase:'HUNT_SELECT_CARD_FROM_PUBLIC',abilityData:{huntTi:huntTi,preSkillRevealed:gs.abilityData?.preSkillRevealed},
-                log:[...L,`你（追猎者）从 ${P[huntTi].name} 的公开手牌中任选一张！`]});
-            }
+            setGs({...gs,players:P,phase:'HUNT_SELECT_CARD_FROM_PUBLIC',abilityData:{huntTi:huntTi,preSkillRevealed:gs.abilityData?.preSkillRevealed},
+              log:[...gs.log,`你（追猎者）从 ${P[huntTi].name} 的公开手牌中任选一张！`]});
             return;
           }else{
             const randomIndex=Math.floor(Math.random()*P[huntTi].hand.length);
@@ -6936,8 +6838,7 @@ export default function Game(){
     }else{
       L.push(`${aiHunterName} 无匹配手牌，追捕失败`);
     }
-    const aiHandLimit=P[huntingAI]._nyaHandLimit??4;
-    while(P[huntingAI].hand.length>aiHandLimit){const c=P[huntingAI].hand.shift();Disc.push(c);L.push(`${aiHunterName} 弃 [${c.key}]（上限）`);}
+    while(P[huntingAI].hand.length>4){const c=P[huntingAI].hand.shift();Disc.push(c);L.push(`${aiHunterName} 弃 [${c.key}]（上限）`);}
 
     const win=checkWin(P,gs._isMP);
     const newAbandoned = gs.huntAbandoned || []; // AI 在发起追捕时已经把你标记过Abandoned了
@@ -6991,6 +6892,69 @@ export default function Game(){
     ],newGs);
   }
 
+  function damageLinkSelectTarget(ti){
+    const {damageLinkTargets,damageLinkSource}=gs.abilityData;
+    if(!damageLinkTargets||!damageLinkTargets.includes(ti))return;
+    let P=copyPlayers(gs.players);
+    const sourcePlayer=P[damageLinkSource];
+    const targetPlayer=P[ti];
+    const currentTurn=gs.turn||0;
+    sourcePlayer.damageLink={partner:ti,active:true,expiryTurn:currentTurn+1};
+    targetPlayer.damageLink={partner:damageLinkSource,active:true,expiryTurn:currentTurn+1};
+    const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.name} 间架起链条，一方受到HP伤害时另一方受等量伤害`];
+    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
+  }
+
+  function caveDuelSelectTarget(ti){
+    const {caveDuelTargets,caveDuelSource}=gs.abilityData;
+    if(!caveDuelTargets||!caveDuelTargets.includes(ti))return;
+    let P=copyPlayers(gs.players);
+    const sourcePlayer=P[caveDuelSource];
+    const targetPlayer=P[ti];
+    // 随机选择双方的一张手牌
+    const sourceCardIdx=Math.floor(Math.random()*sourcePlayer.hand.length);
+    const targetCardIdx=Math.floor(Math.random()*targetPlayer.hand.length);
+    const sourceCard=sourcePlayer.hand[sourceCardIdx];
+    const targetCard=targetPlayer.hand[targetCardIdx];
+    // 获取数字编号，邪神牌视为0
+    const sourceNum=sourceCard.isGod?0:parseInt(sourceCard.key[1]);
+    const targetNum=targetCard.isGod?0:parseInt(targetCard.key[1]);
+    // 从手牌中移除这两张牌
+    sourcePlayer.hand.splice(sourceCardIdx,1);
+    targetPlayer.hand.splice(targetCardIdx,1);
+    let L=[...gs.log,`【穴居人战争】${sourcePlayer.name} 亮出 [${sourceCard.key}]，${targetPlayer.name} 亮出 [${targetCard.key}]`];
+    // 数字更大的一方收下两张牌
+    if(sourceNum>targetNum){
+      sourcePlayer.hand.push(sourceCard,targetCard);
+      L.push(`${sourcePlayer.name} 的数字更大（${sourceNum}>${targetNum}），收下两张牌`);
+    }else if(targetNum>sourceNum){
+      targetPlayer.hand.push(sourceCard,targetCard);
+      L.push(`${targetPlayer.name} 的数字更大（${targetNum}>${sourceNum}），收下两张牌`);
+    }else{
+      // 平局：各自收回
+      sourcePlayer.hand.push(sourceCard);
+      targetPlayer.hand.push(targetCard);
+      L.push(`平局（${sourceNum}=${targetNum}），各自收回`);
+    }
+    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
+  }
+
+  function peekHandSelectTarget(ti){
+    const {peekHandTargets,peekHandSource}=gs.abilityData;
+    if(!peekHandTargets||!peekHandTargets.includes(ti))return;
+    let P=copyPlayers(gs.players);
+    const targetPlayer=P[ti];
+    if(targetPlayer.hand.length===0){
+      setGs({...gs,phase:'ACTION',abilityData:{}});
+      return;
+    }
+    // 随机选择一张手牌
+    const cardIdx=Math.floor(Math.random()*targetPlayer.hand.length);
+    const peekedCard=targetPlayer.hand[cardIdx];
+    const L=[...gs.log,`【偷看手牌】${P[peekHandSource].name} 偷看了 ${targetPlayer.name} 的 [${peekedCard.key}]`];
+    setGs({...gs,players:P,log:L,phase:'ACTION',abilityData:{}});
+  }
+
   // ── God choice handlers ────────────────────────────────────
   function godResolvePlayer(action){
     // action: 'worship'|'upgrade'|'keepHand'|'discard'|'forcedConvert'
@@ -7019,31 +6983,17 @@ export default function Game(){
     } else {
       Disc.push({...godCard});L.push('你放弃了邪神的馈赠');
     }
+    const win=checkWin(P,gs._isMP);
     // Only worship/forcedConvert consume the worship-this-turn slot.
     // Upgrade, discard, and keepHand do not.
     const consumesSlot=action==='worship'||action==='forcedConvert';
     // 保留abilityData中的cthDrawsRemaining信息
     const newGs={...gs,players:P,discard:Disc,log:L,phase:'ACTION',abilityData:gs.abilityData,
-      godTriggeredThisTurn:consumesSlot};
-    // 构建动画队列并执行，在动画完成后检查游戏是否结束
-    const queue=buildAnimQueue(gs,newGs);
-    if(queue.length){
-      triggerAnimQueue(queue,newGs,()=>{
-        const win=checkWin(newGs.players,newGs._isMP);
-        if(win){
-          setGs({...newGs,gameOver:win});
-        }else if(gs.abilityData?.fromRest){
-          _cthContinueRestDraws(newGs);
-        }else{
-          setGs(newGs);
-        }
-      });
-    }else{
-      const win=checkWin(P,gs._isMP);
-      const finalGs={...newGs,...(win?{gameOver:win}:{})};
-      if(!win&&gs.abilityData?.fromRest){_cthContinueRestDraws(finalGs);return;}
-      setGs(finalGs);
-    }
+      godTriggeredThisTurn:consumesSlot,
+      ...(win?{gameOver:win}:{})};
+    // CTH fromRest: after god choice, process remaining draws then advance turn
+    if(!win&&gs.abilityData?.fromRest){_cthContinueRestDraws(newGs);return;}
+    setGs(newGs);
   }
 
   // NYA borrow handlers
@@ -7211,7 +7161,6 @@ export default function Game(){
   function applyNextTurnGs(newGs){
     // Guard: never overwrite win/pending-win state
     if(newGs&&(newGs.phase==='PLAYER_WIN_PENDING'||newGs.phase==='TREASURE_WIN'))return setGs(p=>p?.gameOver||p?.phase==='PLAYER_WIN_PENDING'||p?.phase==='TREASURE_WIN'?p:newGs);
-    const drawStatQ=newGs?buildAnimQueue({...gs,players:newGs._playersBeforeThisDraw||gs.players},newGs):[];
     if(newGs._isMP&&newGs.currentTurn!==0){
       const ph=newGs.phase;
       const drawnCard=ph==='GOD_CHOICE'?newGs.abilityData?.godCard:newGs.drawReveal?.card;
@@ -7222,7 +7171,7 @@ export default function Game(){
         receivedGsRef.current=true; // 遮蔽态不对外广播；真实 gs 由 advanceQueue→setGs→useEffect([gs]) 正常广播
         // 注意：此处不设 suppressNextBroadcastRef，advanceQueue 应用真实 gs 后必须广播给其他玩家
         pendingGsRef.current=newGs;
-        animQueueRef.current=[...drawStatQ];
+        animQueueRef.current=[];
         setGs({...newGs,phase:'ACTION',drawReveal:null,abilityData:{}});
         setAnim({type:'DRAW_CARD',card:drawnCard,triggerName:drawerName,targetPid:drawerPid});
         return;
@@ -7352,13 +7301,11 @@ export default function Game(){
         // 遮蔽真实 phase，动画结束后 advanceQueue 再还原（与 applyNextTurnGs 同样模式）
         suppressNextBroadcastRef.current=true; // pendingGs 已广播过，advanceQueue 不再回传
         pendingGsRef.current=pendingGs;
-        const drawStatQ=buildAnimQueue({...gs,players:pendingGs._playersBeforeThisDraw||gs.players},pendingGs);
-        animQueueRef.current=[...drawStatQ];
+        animQueueRef.current=[];
         setGs({...pendingGs,phase:'ACTION',drawReveal:null,abilityData:{}});
         triggerAnimQueue([
           {type:'YOUR_TURN',name:activeName},
           {type:'DRAW_CARD',card:drawnCard,triggerName:activeName,targetPid:drawerPid},
-          ...drawStatQ,
         ],pendingGs);
       }else{
         triggerAnimQueue([{type:'YOUR_TURN',name:activeName}],pendingGs);
@@ -7367,14 +7314,12 @@ export default function Game(){
     }
     if(pendingGs.drawReveal?.card){
       // Normal draw: YOUR_TURN → card flip → apply state
-      const drawStatQ=buildAnimQueue({...gs,players:pendingGs._playersBeforeThisDraw||gs.players},pendingGs);
-      triggerAnimQueue([{type:'YOUR_TURN'},{type:'DRAW_CARD',card:pendingGs.drawReveal.card,triggerName:'你'},...drawStatQ],pendingGs);
+      triggerAnimQueue([{type:'YOUR_TURN'},{type:'DRAW_CARD',card:pendingGs.drawReveal.card,triggerName:'你'}],pendingGs);
     }else{
       // God card drawn: drawReveal is null, card is in abilityData.godCard
       const godCard=pendingGs.abilityData?.godCard;
       const queue=[{type:'YOUR_TURN'}];
       if(godCard) queue.push({type:'DRAW_CARD',card:godCard,triggerName:'你'});
-      queue.push(...buildAnimQueue({...gs,players:pendingGs._playersBeforeThisDraw||gs.players},pendingGs));
       triggerAnimQueue(queue,pendingGs);
     }
   }
@@ -7421,7 +7366,6 @@ export default function Game(){
         return{...prev,
           players:prev.players.map(p=>({...p,roleRevealed:true,revealHand:true})),
           drawReveal:null,
-          _pendingGodResurrection:undefined,
           _pendingPlayerWin:undefined,
           gameOver:{winner:'邪祀者',reason,winnerIdx:cultists[0]?.id}};
       }else{
@@ -7467,12 +7411,12 @@ export default function Game(){
     ZONE_SWAP_SELECT_TARGET: `【强征献礼】选择要交换全部手牌的目标`,
   }[phase]||'';
 
-  const selectingOther=['SWAP_SELECT_TARGET','HUNT_SELECT_TARGET','BEWITCH_SELECT_TARGET','ZONE_SWAP_SELECT_TARGET','PEEK_HAND_SELECT_TARGET','CAVE_DUEL_SELECT_TARGET','DAMAGE_LINK_SELECT_TARGET'].includes(phase);
+  const selectingOther=['SWAP_SELECT_TARGET','HUNT_SELECT_TARGET','BEWITCH_SELECT_TARGET','ZONE_SWAP_SELECT_TARGET','DAMAGE_LINK_SELECT_TARGET','CAVE_DUEL_SELECT_TARGET','PEEK_HAND_SELECT_TARGET'].includes(phase);
   const selectingCardFromPublic=phase==='HUNT_SELECT_CARD_FROM_PUBLIC';
   // 多人游戏中 HUNT_CONFIRM 非追猎者不显示操作按钮区域
-  const cancelable=['SWAP_SELECT_TARGET','SWAP_SELECT_TARGET_CARD','SWAP_GIVE_CARD','HUNT_SELECT_TARGET','ZONE_SWAP_SELECT_TARGET','PEEK_HAND_SELECT_TARGET','CAVE_DUEL_SELECT_TARGET','DAMAGE_LINK_SELECT_TARGET',...(phase==='HUNT_CONFIRM'&&gs._isMP&&!myTurn?[]:['HUNT_CONFIRM']),'BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
+  const cancelable=['SWAP_SELECT_TARGET','SWAP_SELECT_TARGET_CARD','SWAP_GIVE_CARD','HUNT_SELECT_TARGET','ZONE_SWAP_SELECT_TARGET','DAMAGE_LINK_SELECT_TARGET','CAVE_DUEL_SELECT_TARGET','PEEK_HAND_SELECT_TARGET',...(phase==='HUNT_CONFIRM'&&gs._isMP&&!myTurn?[]:['HUNT_CONFIRM']),'BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET'].includes(phase);
   // In HUNT_CONFIRM, 放弃追捕 replaces ✕取消 — never show both
-  const showCancelBtn=cancelable&&phase!=='HUNT_CONFIRM'&&(!gs._isMP||myTurn)&&!anim;
+  const showCancelBtn=cancelable&&phase!=='HUNT_CONFIRM'&&(!gs._isMP||myTurn);
 
 
   function handleAIClick(pi){
@@ -7494,9 +7438,9 @@ export default function Game(){
       }
     }
     else if(phase==='BEWITCH_SELECT_TARGET')bewitchSelectTarget(pi);
-    else if(phase==='PEEK_HAND_SELECT_TARGET')peekHandSelectTarget(pi);
-    else if(phase==='CAVE_DUEL_SELECT_TARGET')caveDuelSelectTarget(pi);
     else if(phase==='DAMAGE_LINK_SELECT_TARGET')damageLinkSelectTarget(pi);
+    else if(phase==='CAVE_DUEL_SELECT_TARGET')caveDuelSelectTarget(pi);
+    else if(phase==='PEEK_HAND_SELECT_TARGET')peekHandSelectTarget(pi);
   }
   // Use a god card from hand: upgrade (same god, unlimited) or worship (different/new, once per turn)
   function worshipFromHand(idx){
@@ -7872,8 +7816,7 @@ export default function Game(){
                 {phase==='ACTION'&&myTurn&&!isBlocked&&(()=>{
                   // 对于其他职业，只要技能或休息中的任意一个被使用，那么两者都不能再使用
                   // 对于追猎者，只要休息被使用，就不能再使用技能；只要技能被使用，就不能再休息，但技能可以多次使用
-                  const skillRole=gs.globalOnlySwapOwner!=null?'寻宝者':me.role;
-                  const isHunter = skillRole === '追猎者';
+                  const isHunter = me.role === '追猎者';
                   const restLimited = gs.restUsed || (isHunter ? gs.skillUsed : gs.skillUsed);
                   const skillRestLimited = isHunter ? gs.restUsed : (skillLimited || gs.restUsed || gs.skillUsed);
                   return(<>
@@ -8990,29 +8933,6 @@ const GLOBAL_STYLES=`
     20%  {background:rgba(0,0,0,0.45)}
     50%  {background:rgba(10,0,0,0.55)}
     100% {background:rgba(0,0,0,0)}
-  }
-  @keyframes sliceEffect {
-    0%{transform:rotate(30deg) translateX(-100%)}
-    50%{transform:rotate(30deg) translateX(0%)}
-    100%{transform:rotate(30deg) translateX(100%)}
-  }
-  @keyframes sliceFlash {
-    0%{opacity:0}
-    50%{opacity:1}
-    100%{opacity:0}
-  }
-  @keyframes bloodSpread {
-    0%{opacity:0; transform:scale(0.8)}
-    50%{opacity:1; transform:scale(1.2)}
-    100%{opacity:0; transform:scale(1.5)}
-  }
-  @keyframes slideUp {
-    0%{transform:translate(0, 0)}
-    100%{transform:translate(-20px, -20px) rotate(-5deg)}
-  }
-  @keyframes slideDown {
-    0%{transform:translate(0, 0)}
-    100%{transform:translate(20px, 20px) rotate(5deg)}
   }
   @keyframes titleFlameSway {
     0%   {transform:translate(-50%,-50%) scale(var(--flame-scale,1)) rotate(-4deg)}
