@@ -2,6 +2,21 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 // socket.io-client is loaded at runtime via CDN (only outside Claude Artifacts)
 
+// Ellipsis component for loading animation
+function Ellipsis() {
+  const [dots, setDots] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev + 1) % 4);
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return <span>{'.'.repeat(dots)}</span>;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  DATA
 // ══════════════════════════════════════════════════════════════
@@ -3653,10 +3668,10 @@ function AboutModal({onClose}){
           {/* Bio */}
           <div style={{flex:1,paddingTop:4}}>
             <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#b07828',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>— 关于作者 —</div>
-            <div style={{color:'#c8a96e',fontSize:12,lineHeight:1.9,fontStyle:'italic'}}>
+            <div style={{color:'#c8a96e',fontSize:12,lineHeight:1.8,fontStyle:'italic'}}>
               猫奴，上班党，不回就是在上班，会尽量努力更新。
             </div>
-            <div style={{color:'#9a7a42',fontSize:11,lineHeight:1.8,marginTop:8}}>
+            <div style={{color:'#9a7a42',fontSize:11,lineHeight:1.8,marginTop:8,fontStyle:'italic'}}>
               如果你遇到与游戏规则有关的bug，记得在游戏结束后点击“显示游戏日志”并复制内容。
             </div>
           </div>
@@ -3666,8 +3681,8 @@ function AboutModal({onClose}){
         {/* Bottom half */}
         <div style={{padding:'16px 20px 22px',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:10,color:'#b07828',letterSpacing:2,textTransform:'uppercase'}}>— 意见与反馈 —</div>
-          <div style={{color:'#c8a96e',fontSize:12,letterSpacing:1}}>QQ催更群：787317460</div>
-          <div style={{color:'#9a7a42',fontSize:11,letterSpacing:1,fontStyle:'italic'}}>微信催更群二维码</div>
+          <div style={{color:'#c8a96e',fontSize:12,letterSpacing:1,fontStyle:'italic'}}>QQ催更群：787317460</div>
+          <div style={{color:'#c8a96e',fontSize:12,letterSpacing:1,fontStyle:'italic'}}>微信催更群二维码</div>
           <img
             src={buildPublicUrl('img/QRCode.jpg')}
             alt="微信催更群二维码"
@@ -3992,6 +4007,16 @@ export default function Game(){
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingError, setLoadingError] = useState(null);
+  const [currentFile, setCurrentFile] = useState('');
+  const [totalSize, setTotalSize] = useState(0);
+  const [loadedSize, setLoadedSize] = useState(0);
+  
+  // Helper function to format file size
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
   
   // Preload audio and video files
   useEffect(() => {
@@ -4019,15 +4044,50 @@ export default function Game(){
       
       let loadedCount = 0;
       const totalFiles = audioFiles.length + videoFiles.length;
+      let totalBytes = 0;
+      let loadedBytes = 0;
+      
+      // Calculate total size of all files
+      const calculateTotalSize = async () => {
+        let total = 0;
+        for (const file of [...audioFiles, ...videoFiles]) {
+          try {
+            const response = await fetch(file, { method: 'HEAD' });
+            const size = parseInt(response.headers.get('content-length') || '0');
+            total += size;
+          } catch (error) {
+            console.error(`Failed to get size for ${file}`, error);
+          }
+        }
+        return total;
+      };
+      
+      totalBytes = await calculateTotalSize();
+      setTotalSize(totalBytes);
       
       // Preload audio files
       for (const file of audioFiles) {
         try {
+          setCurrentFile(file.split('/').pop());
           const audio = new Audio(file);
           // Set cache control headers
           audio.crossOrigin = 'anonymous';
+          
+          // Get file size
+          let fileSize = 0;
+          try {
+            const response = await fetch(file, { method: 'HEAD' });
+            fileSize = parseInt(response.headers.get('content-length') || '0');
+          } catch (error) {
+            console.error(`Failed to get size for ${file}`, error);
+          }
+          
           await new Promise((resolve, reject) => {
-            audio.addEventListener('canplaythrough', resolve);
+            audio.addEventListener('canplaythrough', () => {
+              loadedBytes += fileSize;
+              setLoadedSize(loadedBytes);
+              resolve();
+            });
             audio.addEventListener('error', reject);
             audio.load();
           });
@@ -4044,12 +4104,27 @@ export default function Game(){
       // Preload video files
       for (const file of videoFiles) {
         try {
+          setCurrentFile(file.split('/').pop());
           const video = document.createElement('video');
           video.src = file;
           video.preload = 'auto';
           video.crossOrigin = 'anonymous';
+          
+          // Get file size
+          let fileSize = 0;
+          try {
+            const response = await fetch(file, { method: 'HEAD' });
+            fileSize = parseInt(response.headers.get('content-length') || '0');
+          } catch (error) {
+            console.error(`Failed to get size for ${file}`, error);
+          }
+          
           await new Promise((resolve, reject) => {
-            video.addEventListener('canplaythrough', resolve);
+            video.addEventListener('canplaythrough', () => {
+              loadedBytes += fileSize;
+              setLoadedSize(loadedBytes);
+              resolve();
+            });
             video.addEventListener('error', reject);
             video.load();
           });
@@ -5377,9 +5452,28 @@ export default function Game(){
           <div style={{fontFamily:"'Cinzel Decorative','Cinzel',serif",fontSize:34,fontWeight:700,letterSpacing:3,marginBottom:24,color:'#e8c87a',textShadow:'0 0 40px #c8a96e44,0 2px 0 #0a0705'}}>邪神的宝藏</div>
           
           <div style={{marginBottom:32}}>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:14,letterSpacing:2,marginBottom:12,color:'#c8a96e',opacity:0.85}}>正在加载游戏资源...</div>
+            <div style={{display:'flex',alignItems:'center',marginBottom:20}}>
+              <img 
+                src="/img/loading.png" 
+                style={{
+                  height: '12px', 
+                  marginRight: '10px',
+                  animation: 'spinLoader 1s linear infinite'
+                }} 
+                alt="Loading"
+              />
+              <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontSize:12,fontStyle:'italic',color:'#a07838',lineHeight:1.5}}>
+                第一次前往遗迹的路会很长，请稍等<Ellipsis/>
+              </div>
+            </div>
             
-            <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontSize:12,fontStyle:'italic',marginBottom:16,color:'#a07838',lineHeight:1.5}}>第一次前往遗迹的路会很长，请稍等……</div>
+            {currentFile && (
+              <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontSize:11,marginBottom:12,color:'#8a6a38'}}>当前文件: {currentFile}</div>
+            )}
+            
+            <div style={{fontFamily:"'IM Fell English','Georgia',serif",fontSize:11,marginBottom:16,color:'#8a6a38'}}>
+              下载进度: {formatFileSize(loadedSize)} / {formatFileSize(totalSize)}
+            </div>
             
             <div style={{width:'100%',height:8,background:'#140f08',border:'1px solid #3a2510',borderRadius:4,overflow:'hidden'}}>
               <div style={{
