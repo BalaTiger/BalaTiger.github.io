@@ -870,7 +870,7 @@ function startNextTurn(gs){
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
     if(!P[next].isDead&&P[next].role==='寻宝者'&&isWinHand(P[next].hand)){P[next].roleRevealed=true;return{...gs,players:P,deck:D,discard:Disc,log:[...L,`${P[next].name} 集齐全部编号并获胜！`],gameOver:{winner:'寻宝者',reason:`${P[next].name} 集齐了全部编号并获胜！`,winnerIdx:next}};}
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'AI_TURN',drawReveal:null,selectedCard:null,abilityData:{},huntAbandoned:[],
-      _drawnCard:res.drawnCard??null,_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
+      _drawnCard:res.drawnCard??null,_aiDrawMsgs:res.effectMsgs||[],_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
   }
 }
 
@@ -987,7 +987,7 @@ function aiStep(gs){
                 return {...gs, players:P, deck:D, discard:Disc, log:L,
                   phase:'PLAYER_REVEAL_FOR_HUNT',
                   abilityData:{huntingAI:ct, aiHunterName:ai.name},
-                  skillUsed:true, huntAbandoned: updatedAbandoned, _aiName:ai.name, _drawnCard:gs._drawnCard, _aiDrawnCard:gs._drawnCard};
+                  skillUsed:true, huntAbandoned: updatedAbandoned, _aiName:ai.name, _drawnCard:null, _aiDrawMsgs:null, _aiDrawnCard:gs._drawnCard};
               } else {
                 const rc = aiChooseRevealCard(zoneH, P[ct].hand);
                 L.push(`${ai.name}（追猎者）对 ${tgt.name} 【追捕】，亮出 [${rc.key}]`);
@@ -1134,7 +1134,7 @@ function aiStep(gs){
   const hasValidTargets = P.filter((p, i) => !p.isDead && i !== ct && p.role !== '追猎者' && !newAbandoned.includes(i)).length > 0;
   const hasZoneCards = P[ct].hand.filter(c=>!c.isGod).length > 0;
   if (aiEffRole === '追猎者' && huntContinue && hasZoneCards && hasValidTargets) {
-      nextGs = {...gs, players:P, deck:D, discard:Disc, log:L, phase: 'AI_TURN', currentTurn: ct, huntAbandoned: newAbandoned, skillUsed: false, _drawnCard: gs._drawnCard};
+      nextGs = {...gs, players:P, deck:D, discard:Disc, log:L, phase: 'AI_TURN', currentTurn: ct, huntAbandoned: newAbandoned, skillUsed: false, _drawnCard: null, _aiDrawMsgs: null};
   } else {
       nextGs = startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct, huntAbandoned: newAbandoned, skillUsed: (useSkill || gs.skillUsed)});
   }
@@ -5142,7 +5142,7 @@ export default function Game(){
         return;
       }
       // Strip ALL animation-only temp fields before storing as real game state
-      const{_aiDrawnCard,_aiName,_drawnCard,_playersBeforeNextDraw,...stripped}=rawResult;
+      const{_aiDrawnCard,_aiName,_playersBeforeNextDraw,...stripped}=rawResult;
       newGs=stripped; // reassign: stripped has _playersBeforeThisDraw from startNextTurn
       const newMsgs=newGs.log.slice(gs.log.length);
       const j=newMsgs.join(' ');
