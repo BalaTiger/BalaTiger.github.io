@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import ReactDOM, { createPortal } from "react-dom";
 // socket.io-client is loaded at runtime via CDN (only outside Claude Artifacts)
 
@@ -164,6 +164,98 @@ function mkRoles(N=5, isSinglePlayer=false) {
   return shuffle(roles);
 }
 const isWinHand=h=>{const ls=new Set(h.map(c=>c.letter)),ns=new Set(h.map(c=>c.number));return LETTERS.every(l=>ls.has(l))&&NUMS.every(n=>ns.has(n));};
+
+// AI 亮牌策略：选择与追猎者手牌匹配度最低的区域牌（降低被击中概率）
+function aiChooseRevealCard(targetHand, hunterHand, log, discardPile){
+  const zoneCards=targetHand.filter(c=>!c.isGod);
+  if(!zoneCards.length)return targetHand[0];
+
+  const scored=zoneCards.map(c=>{
+    let safetyScore=0;
+
+    const hunterCardsInHand=[];
+    log.forEach(entry=>{
+      if(entry.includes('摸到')&&entry.includes('[')&&entry.includes(']')){
+        const cardMatch=entry.match(/\[(.*?)\]/);
+        if(cardMatch){
+          const cardKey=cardMatch[1];
+          const wasDiscarded=log.some(logEntry=>logEntry.includes('弃 [')&&logEntry.includes(cardKey)&&logEntry.includes(']'));
+          if(!wasDiscarded){
+            const letterMatch=cardKey.match(/[A-Z]/);
+            const numberMatch=cardKey.match(/\d+/);
+            if(letterMatch&&numberMatch){
+              hunterCardsInHand.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
+            }
+          }
+        }
+      }
+    });
+
+    const isSimilarToHunterCard=hunterCardsInHand.some(hc=>hc.letter===c.letter||hc.number===c.number);
+    if(!isSimilarToHunterCard){
+      safetyScore+=3;
+    }
+
+    const recentHuntEntries=[];
+    log.forEach((entry,index)=>{
+      if(entry.includes('追捕')&&entry.includes('亮出')){
+        recentHuntEntries.push({entry,index});
+      }
+    });
+    recentHuntEntries.sort((a,b)=>b.index-a.index);
+
+    if(recentHuntEntries.length>0){
+      const lastHuntEntry=recentHuntEntries[0].entry;
+      if(lastHuntEntry.includes('亮出')&&!lastHuntEntry.includes('受')){
+        const cardMatch=lastHuntEntry.match(/\[(.*?)\]/);
+        if(cardMatch){
+          const cardKey=cardMatch[1];
+          const letterMatch=cardKey.match(/[A-Z]/);
+          const numberMatch=cardKey.match(/\d+/);
+          if(letterMatch&&numberMatch){
+            const revealedCard={letter:letterMatch[0],number:parseInt(numberMatch[0])};
+            if(revealedCard.letter===c.letter||revealedCard.number===c.number){
+              safetyScore+=2;
+            }
+          }
+        }
+      }
+    }
+
+    const discardedHunterCards=[];
+    log.forEach(entry=>{
+      if(entry.includes('弃 [')&&entry.includes(']')){
+        const cardMatch=entry.match(/\[(.*?)\]/);
+        if(cardMatch){
+          const cardKey=cardMatch[1];
+          const letterMatch=cardKey.match(/[A-Z]/);
+          const numberMatch=cardKey.match(/\d+/);
+          if(letterMatch&&numberMatch){
+            discardedHunterCards.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
+          }
+        }
+      }
+    });
+
+    const letterCount={};
+    const numberCount={};
+    discardedHunterCards.forEach(card=>{
+      letterCount[card.letter]=(letterCount[card.letter]||0)+1;
+      numberCount[card.number]=(numberCount[card.number]||0)+1;
+    });
+
+    safetyScore+=letterCount[c.letter]||0;
+    safetyScore+=numberCount[c.number]||0;
+
+    return{c,safetyScore};
+  });
+
+  scored.sort((a,b)=>b.safetyScore-a.safetyScore);
+  const maxScore=scored[0].safetyScore;
+  const bestCards=scored.filter(s=>s.safetyScore===maxScore);
+  const randomIndex=Math.floor(Math.random()*bestCards.length);
+  return bestCards[randomIndex].c;
+}
 
 // ══════════════════════════════════════════════════════════════
 //  EFFECT ENGINE
@@ -621,7 +713,42 @@ function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor
     }
     if(P[i].hp<=0)killPlayer(i);
   };
-  const hurtSAN=(i,v)=>{if(i==null||!P[i]||P[i].isDead||(avoidNegative&&i===ci)||avoidNegativeFor.includes(i))return;const oldSan=P[i].san;P[i].san=clamp(P[i].san-v);const newSan=P[i].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}};
+  const mergeInspectionResult=(inspectionResult, baseLog)=>{
+    P=inspectionResult.players;
+    D=inspectionResult.deck;
+    Disc=inspectionResult.discard;
+    statePatch={
+      ...statePatch,
+      inspectionDeck:inspectionResult.inspectionDeck,
+      inspectionDiscard:inspectionResult.inspectionDiscard,
+      sealLooseningCount:inspectionResult.sealLooseningCount,
+      houndsOfTindalosActive:inspectionResult.houndsOfTindalosActive,
+      houndsOfTindalosTarget:inspectionResult.houndsOfTindalosTarget,
+    };
+    const fullLog=Array.isArray(inspectionResult.log)?inspectionResult.log:baseLog;
+    const extraMsgs=fullLog.slice(baseLog.length);
+    if(extraMsgs.length)msgs.push(...extraMsgs);
+  };
+  const hurtSAN=(i,v)=>{
+    if(i==null||!P[i]||P[i].isDead||(avoidNegative&&i===ci)||avoidNegativeFor.includes(i))return;
+    P[i].san=clamp(P[i].san-v);
+    const newSan=P[i].san;
+    if(newSan<=6){
+      const inspectionBaseLog=[...(Array.isArray(gs?.log)?gs.log:[]),...msgs];
+      const inspectionResult=handleInspection(i,{
+        players:P,
+        deck:D,
+        discard:Disc,
+        log:inspectionBaseLog,
+        inspectionDeck:statePatch.inspectionDeck??gs?.inspectionDeck??[],
+        inspectionDiscard:statePatch.inspectionDiscard??gs?.inspectionDiscard??[],
+        sealLooseningCount:statePatch.sealLooseningCount??gs?.sealLooseningCount??0,
+        houndsOfTindalosActive:statePatch.houndsOfTindalosActive??gs?.houndsOfTindalosActive??false,
+        houndsOfTindalosTarget:statePatch.houndsOfTindalosTarget??gs?.houndsOfTindalosTarget??null,
+      });
+      mergeInspectionResult(inspectionResult,inspectionBaseLog);
+    }
+  };
   const dealHP=(i,v)=>hurtHP(i,v+dmgBonus);
   const dealSAN=(i,v)=>hurtSAN(i,v+dmgBonus);
   const randDiscard = (i, count = 1) => {
@@ -711,6 +838,35 @@ function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor
       const damageDesc=damageType==='hp'?'HP':(damageType==='san'?'SAN':'HP 和 SAN');
       msgs.push(`全体存活角色失去 ${value+dmgBonus} ${damageDesc}`);
     }
+  };
+
+  // 辅助函数：自身先受伤，再对相邻角色造成伤害
+  const applySelfAndAdjacentDamage=({selfHp=0,selfSan=0,adjHp=0,adjSan=0})=>{
+    if(avoidNegative||avoidNegativeFor.includes(ci))return false;
+    const adjacentTargets=getAdjacentTargets(P,ci).filter((i,pos,arr)=>i!==ci&&i!=null&&P[i]&&!P[i].isDead&&arr.indexOf(i)===pos);
+    if(selfHp)hurtHP(ci,selfHp);
+    if(selfSan)hurtSAN(ci,selfSan);
+    if(selfHp&&selfSan){
+      msgs.push(`${actor.name} 失去 ${selfHp} HP 和 ${selfSan} SAN`);
+    }else if(selfHp){
+      msgs.push(`${actor.name} 失去 ${selfHp} HP`);
+    }else if(selfSan){
+      msgs.push(`${actor.name} 失去 ${selfSan} SAN`);
+    }
+    adjacentTargets.forEach(i=>{
+      if(!avoidNegativeFor.includes(i)){
+        if(adjHp)dealHP(i,adjHp);
+        if(adjSan)dealSAN(i,adjSan);
+      }
+    });
+    if(adjHp&&adjSan){
+      msgs.push(`${actor.name} 周围的角色各失去 ${adjHp+dmgBonus} HP 和 ${adjSan+dmgBonus} SAN`);
+    }else if(adjHp){
+      msgs.push(`${actor.name} 周围的角色各失去 ${adjHp+dmgBonus} HP`);
+    }else if(adjSan){
+      msgs.push(`${actor.name} 周围的角色各失去 ${adjSan+dmgBonus} SAN`);
+    }
+    return true;
   };
   switch(card.type){
     case 'selfHealHP': healHP(ci,card.val);msgs.push(`${actor.name} 回复了 ${card.val} HP`);break;
@@ -893,20 +1049,20 @@ function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor
     case 'selfDamageAdjDamageBoth': 
       // 复合效果：负面效果（失去HP和SAN）+ 相邻角色失去HP和SAN
       // 规避时所有效果都不触发
-      if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
-        const hv=card.hpVal||0,sv=card.sanVal||0;
-        hurtHP(ci,hv);
-        hurtSAN(ci,sv);
-        msgs.push(`${actor.name} 失去 ${hv} HP 和 ${sv} SAN`);
-        // 对相邻角色造成伤害
-        adjacent.forEach(i=>{
-          if(!avoidNegativeFor.includes(i)){
-            dealHP(i,card.adjHpVal||0);
-            dealSAN(i,card.adjSanVal||0);
-          }
-        });
-        msgs.push(`${actor.name} 周围的角色各失去 ${card.adjHpVal||0} HP 和 ${card.adjSanVal||0} SAN`);
-      }
+      applySelfAndAdjacentDamage({
+        selfHp:card.hpVal||0,
+        selfSan:card.sanVal||0,
+        adjHp:card.adjHpVal||0,
+        adjSan:card.adjSanVal||0,
+      });
+      break;
+    case 'selfDamageAdjDamageHP':
+      // 复合效果：负面效果（自身失去HP）+ 相邻角色各失去HP
+      // 规避时所有效果都不触发
+      applySelfAndAdjacentDamage({
+        selfHp:card.val||0,
+        adjHp:card.adjVal||1,
+      });
       break;
     case 'allDamageHPRandomExtra':
       // 钻地魔虫：全体存活角色失去1HP，然后随机选择一名角色失去1HP
@@ -1174,11 +1330,21 @@ function shouldTriggerGodResurrection(gs){
   return gs.players.some(p=>!p.isDead&&p.san<=0&&p.hp>0);
 }
 
-function resolveGodEncounterForAI(ci,godCard,P,Disc,forcedConvert){
+function resolveGodEncounterForAI(ci,godCard,P,D,Disc,gs,forcedConvert){
   const msgs=[];const godKey=godCard.godKey;
+  let inspectionMeta={
+    inspectionDeck: gs?.inspectionDeck||[],
+    inspectionDiscard: gs?.inspectionDiscard||[],
+    sealLooseningCount: gs?.sealLooseningCount||0,
+    houndsOfTindalosActive: gs?.houndsOfTindalosActive||false,
+    houndsOfTindalosTarget: gs?.houndsOfTindalosTarget||null,
+    _inspectionSeq: gs?._inspectionSeq||0,
+    _inspectionCard: gs?._inspectionCard||null,
+    _inspectionTarget: gs?._inspectionTarget??null,
+  };
   P=P.map(p=>({...p,godZone:[...(p.godZone||[])]})); // shallow copy godZone arrays
   if(forcedConvert&&P[ci].godName&&P[ci].godName!==godKey){
-    const oldSan=P[ci].san;P[ci].san=clamp(P[ci].san-1);const newSan=P[ci].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(ci,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}msgs.push(`${P[ci].name} 被迫改信新神，SAN-1`);
+    P[ci].san=clamp(P[ci].san-1);const newSan=P[ci].san;if(newSan<=6){const inspectionBaseLog=[...(Array.isArray(gs?.log)?gs.log:[]),...msgs];const inspectionResult=handleInspection(ci,{players:P,deck:D,discard:Disc,log:inspectionBaseLog,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);const extraMsgs=(inspectionResult.log||[]).slice(inspectionBaseLog.length);if(extraMsgs.length)msgs.push(...extraMsgs);}msgs.push(`${P[ci].name} 被迫改信新神，SAN-1`);
     Disc.push(...P[ci].godZone);P[ci].godZone=[];P[ci].godName=null;P[ci].godLevel=0;
   }
   let action;
@@ -1195,14 +1361,14 @@ function resolveGodEncounterForAI(ci,godCard,P,Disc,forcedConvert){
     P[ci].godLevel++;P[ci].godZone.push({...godCard});
     msgs.push(`${P[ci].name} 邪神之力升至Lv.${P[ci].godLevel}（${godCard.power}）`);
     P.forEach((p,i)=>{if(i!==ci&&p.godName===godKey){
-      const oldSan=p.san;p.san=clamp(p.san-1);const newSan=p.san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;
+      p.san=clamp(p.san-1);const newSan=p.san;if(newSan<=6){const inspectionBaseLog=[...(Array.isArray(gs?.log)?gs.log:[]),...msgs];const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,log:inspectionBaseLog,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);const extraMsgs=(inspectionResult.log||[]).slice(inspectionBaseLog.length);if(extraMsgs.length)msgs.push(...extraMsgs);}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;
       msgs.push(`${p.name} 被邪神抛弃，SAN-1`);
     }});
   } else if(action==='worship'){
     P[ci].godName=godKey;P[ci].godLevel=1;P[ci].godZone=[{...godCard}];
     msgs.push(`${P[ci].name} 信仰了 ${godCard.name}，获得${godCard.power}(Lv.1)`);
     P.forEach((p,i)=>{if(i!==ci&&p.godName===godKey){
-      const oldSan=p.san;p.san=clamp(p.san-1);const newSan=p.san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;
+      p.san=clamp(p.san-1);const newSan=p.san;if(newSan<=6){const inspectionBaseLog=[...(Array.isArray(gs?.log)?gs.log:[]),...msgs];const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,log:inspectionBaseLog,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);const extraMsgs=(inspectionResult.log||[]).slice(inspectionBaseLog.length);if(extraMsgs.length)msgs.push(...extraMsgs);}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;
       msgs.push(`${p.name} 被邪神抛弃，SAN-1`);
     }});
   } else if(action==='hand'){
@@ -1210,13 +1376,12 @@ function resolveGodEncounterForAI(ci,godCard,P,Disc,forcedConvert){
   } else {
     Disc.push({...godCard});msgs.push(`${P[ci].name} 放弃了邪神的馈赠`);
   }
-  return{P,Disc,msgs};
+  return{P,D,Disc,msgs,inspectionMeta};
 }
 
 // Apply god encounter SAN cost and resolve for AI
-function aiHandleGodCard(ci,godCard,P,D,Disc,L){
-  P[ci].godEncounters=(P[ci].godEncounters||0)+1;
-  const sanCost=P[ci].godEncounters;
+function aiHandleGodCard(ci,godCard,P,D,Disc,L,gs){
+  const sanCost=P[ci].godEncounters||0;
   // 邪祀者遭遇邪神时不扣减SAN且强制亮明身份
   let effectMsg = '';
   if (P[ci].role === ROLE_CULTIST) {
@@ -1226,14 +1391,30 @@ function aiHandleGodCard(ci,godCard,P,D,Disc,L){
       effectMsg += '，身份揭晓：邪祀者';
     }
   } else {
-    const oldSan=P[ci].san;P[ci].san=clamp(P[ci].san-sanCost);const newSan=P[ci].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(ci,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
     effectMsg = `${P[ci].name} 遭遇邪神 ${godCard.name}！（第${P[ci].godEncounters}次）失去${sanCost}SAN`;
   }
   L.push(effectMsg);
   const forcedConvert=!!(P[ci].godName&&P[ci].godName!==godCard.godKey);
-  const gres=resolveGodEncounterForAI(ci,godCard,P,Disc,forcedConvert);
-  P=gres.P;Disc=gres.Disc;L.push(...gres.msgs);
-  return{P,D,Disc,L};
+  const gres=resolveGodEncounterForAI(ci,godCard,P,D,Disc,gs,forcedConvert);
+  P=gres.P;D=gres.D;Disc=gres.Disc;L.push(...gres.msgs);
+  return{P,D,Disc,L,inspectionMeta:gres.inspectionMeta};
+}
+
+function getHunterChaseTargets(players,hunterIdx,huntAbandoned=[]){
+  return players
+    .map((player,idx)=>({player,idx}))
+    .filter(({player,idx})=>!player.isDead && idx!==hunterIdx && player.role!==ROLE_HUNTER && !huntAbandoned.includes(idx))
+    .filter(({player})=>(player.hand||[]).some(c=>!c.isGod));
+}
+
+function shouldHunterKeepChasing(players,hunterIdx,huntAbandoned=[]){
+  const hunter=players[hunterIdx];
+  if(!hunter||hunter.isDead)return false;
+  const hunterZoneCards=(hunter.hand||[]).filter(c=>!c.isGod);
+  const hunterHandLimit=hunter._nyaHandLimit??4;
+  const hunterOverLimit=hunterZoneCards.length>hunterHandLimit;
+  const someoneWounded=players.some((p,i)=>i!==hunterIdx&&!p.isDead&&p.hp<10);
+  return hunterZoneCards.length>0 && getHunterChaseTargets(players,hunterIdx,huntAbandoned).length>0 && (hunterOverLimit||someoneWounded);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1260,9 +1441,9 @@ function handleCardDraw(ci, ps, deck, disc, isAI = false, gs = {}) {
       let L2 = [];
       // AI处理邪神牌时，仍然立即扣减SAN值
       if (P[ci].role !== ROLE_CULTIST) {
-        const oldSan=P[ci].san;P[ci].san = clamp(P[ci].san - cost);const newSan=P[ci].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(ci,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
+        P[ci].san = clamp(P[ci].san - cost);const newSan=P[ci].san;if(newSan<=6){const inspectionResult=handleInspection(ci,{players:P,deck:D,discard:Disc,log:gs?.log||[],inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
       }
-      const gr = aiHandleGodCard(ci, drawnCard, P, D, Disc, L2);
+      const gr = aiHandleGodCard(ci, drawnCard, P, D, Disc, L2, gs);
       P = gr.P; D = gr.D; Disc = gr.Disc;
       return { P, D, Disc, drawnCard, effectMsgs: L2, kept: true };
     } else {
@@ -1300,7 +1481,7 @@ function handleCardDraw(ci, ps, deck, disc, isAI = false, gs = {}) {
     const keep = aiShouldKeepZoneCard(drawnCard, ci, P, false);
     if (!keep) {
       Disc.push(drawnCard);
-      return { P, D, Disc, drawnCard, effectMsgs: [`${P[ci].name} 摸到 [${drawnCard.key}] ${drawnCard.name}，评估后选择弃置`], needsDecision: false, _aiDrawnCard: drawnCard };
+      return { P, D, Disc, drawnCard, effectMsgs: [`${P[ci].name} 摸到 [${drawnCard.key}] ${drawnCard.name}，评估后选择弃置`], needsDecision: false, _aiDrawnCard: drawnCard, discardedDrawnCard: true };
     }
     
     // AI Treasure Hunter dodge logic
@@ -1518,7 +1699,7 @@ function startNextTurn(gs){
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
     if(!P[next].isDead&&P[next].role===ROLE_TREASURE&&isWinHand(P[next].hand)){P[next].roleRevealed=true;return{...gs,players:P,deck:D,discard:Disc,log:[...L,`${P[next].name} 集齐全部编号并获胜！`],gameOver:{winner:ROLE_TREASURE,reason:`${P[next].name} 集齐了全部编号并获胜！`,winnerIdx:next}};}
     return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,phase:'AI_TURN',drawReveal:null,selectedCard:null,abilityData:{...gs.abilityData,...(res.statePatch?.abilityData||{})},huntAbandoned:[],
-      _drawnCard:res.drawnCard??null,_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
+      _drawnCard:res.drawnCard??null,_discardedDrawnCard:!!res.discardedDrawnCard,_playersBeforeThisDraw:_P_beforeDraw,_turnKey:(gs._turnKey||0)+1,...(res.statePatch||{}),globalOnlySwapOwner:(res.statePatch?.globalOnlySwapOwner??globalOnlySwapOwner)};
   }
 }
 
@@ -1558,7 +1739,7 @@ function aiStep(gs){
       let targetCardIndex, targetCard;
       if(targetIdx===0){
         // 玩家作为目标角色，需要选择牌
-        return{...gs,players:P,deck:D,discard:Disc,log:L,abilityData:{...abilityData,caveDuelTarget:targetIdx,sourceCardIndex:sourceCardIndex,sourceCard:sourceCard},currentTurn:ct,phase:'CAVE_DUEL_SELECT_CARD'};
+        return{...gs,players:P,deck:D,discard:Disc,log:L,abilityData:{...abilityData,caveDuelTarget:targetIdx,sourceCardIndex:sourceCardIndex,sourceCard:sourceCard},currentTurn:ct,phase:'CAVE_DUEL_SELECT_CARD',_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false};
       }else{
         // AI作为目标角色，选择数字编号最大的牌
         let maxTargetNumber=-1;
@@ -1596,7 +1777,7 @@ function aiStep(gs){
       }
     }
     // 清除能力数据
-    return{...gs,players:P,deck:D,discard:Disc,log:L,abilityData:{},currentTurn:ct,phase:'AI_TURN'};
+    return{...gs,players:P,deck:D,discard:Disc,log:L,abilityData:{},currentTurn:ct,phase:'AI_TURN',_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false};
   }
   if((ai._nyaBorrow||ai.role)===ROLE_TREASURE&&isWinHand(ai.hand)){P[ct].roleRevealed=true;return{...gs,players:P,log:[...L,`${ai.name} 宣告获胜！`],gameOver:{winner:ROLE_TREASURE,reason:`${ai.name} 集齐了全部编号并获胜！`,winnerIdx:ct}};}
   // AI worship-from-hand: face-down god cards in hand can be worshipped (no skull counter, once per turn)
@@ -1604,12 +1785,22 @@ function aiStep(gs){
     const handGodIdx=P[ct].hand.findIndex(c=>c.isGod);
     if(handGodIdx>=0){
       const hgc=P[ct].hand[handGodIdx];
+      let inspectionMeta={
+        inspectionDeck: gs.inspectionDeck,
+        inspectionDiscard: gs.inspectionDiscard,
+        sealLooseningCount: gs.sealLooseningCount,
+        houndsOfTindalosActive: gs.houndsOfTindalosActive,
+        houndsOfTindalosTarget: gs.houndsOfTindalosTarget,
+        _inspectionSeq: gs._inspectionSeq||0,
+        _inspectionCard: gs._inspectionCard||null,
+        _inspectionTarget: gs._inspectionTarget??null,
+      };
       const alreadyHasGod=P[ct].godName&&P[ct].godName!==hgc.godKey;
       const willWorship=P[ct].role===ROLE_CULTIST?Math.random()<0.65:Math.random()<0.45;
       if(willWorship){
         P[ct].hand.splice(handGodIdx,1);
         // Forced convert if worshipping different god
-        if(alreadyHasGod){const oldSan=P[ct].san;P[ct].san=clamp(P[ct].san-1);const newSan=P[ct].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(ct,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...P[ct].godZone);P[ct].godZone=[];P[ct].godName=null;P[ct].godLevel=0;L.push(`${P[ct].name} 改信新神，SAN-1`);}
+        if(alreadyHasGod){P[ct].san=clamp(P[ct].san-1);const newSan=P[ct].san;if(newSan<=6){const inspectionResult=handleInspection(ct,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...P[ct].godZone);P[ct].godZone=[];P[ct].godName=null;P[ct].godLevel=0;L.push(`${P[ct].name} 改信新神，SAN-1`);}
         if(P[ct].godName===hgc.godKey&&P[ct].godLevel<3){
           P[ct].godLevel++;P[ct].godZone.push({...hgc});
           L.push(`${P[ct].name} 从手牌升级邪神之力至Lv.${P[ct].godLevel}（骷髅头不计）`);
@@ -1617,8 +1808,9 @@ function aiStep(gs){
           P[ct].godName=hgc.godKey;P[ct].godLevel=1;P[ct].godZone=[{...hgc}];
           L.push(`${P[ct].name} 从手牌信仰 ${hgc.name}，获得${hgc.power}(Lv.1)（骷髅头不计）`);
         }
-        P.forEach((p,i)=>{if(i!==ct&&p.godName===hgc.godKey){const oldSan=p.san;p.san=clamp(p.san-1);const newSan=p.san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
-        const ww=checkWin(P,gs._isMP);if(ww)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:ww};
+        P.forEach((p,i)=>{if(i!==ct&&p.godName===hgc.godKey){p.san=clamp(p.san-1);const newSan=p.san;if(newSan<=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
+        gs={...gs,...inspectionMeta};
+        const ww=checkWin(P,gs._isMP);if(ww)return{...gs,players:P,deck:D,discard:Disc,log:L,...inspectionMeta,gameOver:ww};
       }
     }
   }
@@ -1647,7 +1839,7 @@ function aiStep(gs){
     while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 [${c.key}]（上限）`);}
     const _P_afterRest=copyPlayers(P);
     const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,restUsed:true,skillUsed:false});
-    return{...nextGs,_aiDrawnCard:gs._drawnCard??nextGs._drawnCard??null,_aiName:ai.name,_playersBeforeNextDraw:_P_afterRest};
+    return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterRest};
   }
 // 追猎者/邪祀者积极发动技能(65%); 寻宝者随进度提升(35%→55%)
   const myNonGod=P[ct].hand.filter(c=>!c.isGod);
@@ -1667,14 +1859,27 @@ function aiStep(gs){
   const someoneWounded = P.some((p,i)=>i!==ct && !p.isDead && p.hp < 10);
   let huntContinue = true;
   let newAbandoned = gs.huntAbandoned || [];
-  const getHunterTargets = () => P
-    .map((p,i)=>({player:p,idx:i}))
-    .filter(({player,idx})=>!player.isDead && idx!==ct && player.role!==ROLE_HUNTER && !newAbandoned.includes(idx))
-    .filter(({player})=>player.hand.some(c=>!c.isGod));
+  const getHunterTargets = () => getHunterChaseTargets(P,ct,newAbandoned);
   const shouldHunterUseSkill = canUseSkill && aiEffRole===ROLE_HUNTER && hunterZoneCards.length>0 && getHunterTargets().length>0 && (hunterOverLimit || someoneWounded);
+  const canBewitch = aiEffRole===ROLE_CULTIST && P[ct].hand.length>0 && alive.length>0;
+  const canSwapHands = aiEffRole===ROLE_TREASURE && P[ct].hand.length>0 && alive.some(p=>p.hand.length>0);
+  const shouldNonHunterUseSkill = canUseSkill && Math.random() < skillRate && (
+    canBewitch ||
+    canSwapHands
+  );
   const useSkill = aiEffRole===ROLE_HUNTER
     ? shouldHunterUseSkill
-    : (canUseSkill && Math.random() < skillRate && alive.length > 0);
+    : shouldNonHunterUseSkill;
+
+  if(aiEffRole!==ROLE_HUNTER && alive.length===0){
+    const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
+    const aiHandLimit=P[ct]._nyaHandLimit??4;
+    while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 [${c.key}]（上限）`);}
+    L.push(`${ai.name} 未使用技能，结束回合`);
+    const _P_afterAction=copyPlayers(P);
+    const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,huntAbandoned:newAbandoned,skillUsed:gs.skillUsed});
+    return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction};
+  }
 
   // 如果无法使用技能，重置huntContinue为false，防止无限循环
   if(!useSkill){
@@ -1705,7 +1910,7 @@ function aiStep(gs){
               return {...gs, players:P, deck:D, discard:Disc, log:L,
                 phase:'PLAYER_REVEAL_FOR_HUNT',
                 abilityData:{huntingAI:ct, aiHunterName:ai.name},
-                skillUsed:true, huntAbandoned: updatedAbandoned, _aiName:ai.name, _drawnCard:gs._drawnCard, _aiDrawnCard:gs._drawnCard};
+                skillUsed:true, huntAbandoned: updatedAbandoned, _aiName:ai.name, _drawnCard:gs._drawnCard, _aiDrawnCard:gs._drawnCard, _discardedDrawnCard:gs._discardedDrawnCard??false};
             } else {
               const rc = aiChooseRevealCard(zoneH, P[ct].hand, L, Disc);
               L.push(`${ai.name}（追猎者）对 ${tgt.name} 【追捕】，亮出 [${rc.key}]`);
@@ -1768,6 +1973,9 @@ function aiStep(gs){
         const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
       }
     } else if(aiEffRole===ROLE_CULTIST){
+      if(!alive.length){
+        huntContinue=false;
+      }else{
       const sanScore=p=>(p.hp-p.san);
       tgt=alive.reduce((b,p)=>sanScore(p)>sanScore(b)?p:b,alive[0]);
       const ti=P.indexOf(tgt);
@@ -1783,45 +1991,55 @@ function aiStep(gs){
         P[ct].hand=P[ct].hand.filter(c=>c.id!==sc.id);
         L.push(`${ai.name}（邪祀者）对 ${tgt.name} 【蛊惑】，赠予 [${sc.isGod?sc.name:sc.key}]`);
         if(sc.isGod){
-          const gr=aiHandleGodCard(ti,sc,P,D,Disc,L);
+          P[ti].godEncounters=(P[ti].godEncounters||0)+1;
+          if(P[ti].role===ROLE_CULTIST){
+            P[ti].roleRevealed=true;
+          }else{
+            const godCost=P[ti].godEncounters;
+            P[ti].san=clamp(P[ti].san-godCost);const newSan=P[ti].san;if(newSan<=6){const inspectionResult=handleInspection(ti,{players:P,deck:D,discard:Disc,log:gs?.log||[],inspectionDeck:gs?.inspectionDeck||[],inspectionDiscard:gs?.inspectionDiscard||[],sealLooseningCount:gs?.sealLooseningCount||0,houndsOfTindalosActive:gs?.houndsOfTindalosActive||false,houndsOfTindalosTarget:gs?.houndsOfTindalosTarget||null});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
+          }
+          const gr=aiHandleGodCard(ti,sc,P,D,Disc,L,gs);
           P=gr.P;D=gr.D;Disc=gr.Disc;
         }else{
           const res=applyFx(sc,ti,ti,P,D,Disc,gs);P=res.P;D=res.D;Disc=res.Disc;L.push(...res.msgs);
           P[ti].hand.push(sc);
         }
       }
+      }
     } else {
       const withH=alive.filter(p=>p.hand.length>0);
       const pool=withH.length?withH:alive;
-      if(myProgress>=7){
-        tgt=pool[0|Math.random()*pool.length];
-      }else{
-        const myL=new Set(myNonGod.map(c=>c.letter));
-        const myN=new Set(myNonGod.map(c=>c.number));
-        const scoreH=h=>h.filter(c=>!c.isGod&&(!myL.has(c.letter)||!myN.has(c.number))).length;
-        tgt=pool.reduce((b,p)=>scoreH(p.hand)>scoreH(b.hand)?p:b,pool[0]);
-      }
-      const ti=P.indexOf(tgt);
-      if(P[ti].hand.length&&P[ct].hand.length){
-        const ri=0|Math.random()*P[ti].hand.length;const taken=P[ti].hand.splice(ri,1)[0];
-        const gi=0|Math.random()*P[ct].hand.length;const given=P[ct].hand.splice(gi,1)[0];
-        P[ct].hand.push(taken);P[ti].hand.push(given);
-        // 只有使用自己的掉包技能时才显示"（寻宝者）"，通过“绮丽诗篇”获得的掉包技能不显示
-        L.push(`${ai.name}${gs.globalOnlySwapOwner===null?'（寻宝者）':''}对 ${tgt.name} 【掉包】`);
-        // 只有真正的寻宝者才能通过集齐全部编号获胜
-        if((ai._nyaBorrow||ai.role)===ROLE_TREASURE&&isWinHand(P[ct].hand)){
-          P[ct].roleRevealed=true;
+      if(pool.length){
+        if(myProgress>=7){
+          tgt=pool[0|Math.random()*pool.length];
+        }else{
+          const myL=new Set(myNonGod.map(c=>c.letter));
+          const myN=new Set(myNonGod.map(c=>c.number));
+          const scoreH=h=>h.filter(c=>!c.isGod&&(!myL.has(c.letter)||!myN.has(c.number))).length;
+          tgt=pool.reduce((b,p)=>scoreH(p.hand)>scoreH(b.hand)?p:b,pool[0]);
+        }
+        const ti=P.indexOf(tgt);
+        if(P[ti]?.hand.length&&P[ct].hand.length){
+          const ri=0|Math.random()*P[ti].hand.length;const taken=P[ti].hand.splice(ri,1)[0];
+          const gi=0|Math.random()*P[ct].hand.length;const given=P[ct].hand.splice(gi,1)[0];
+          P[ct].hand.push(taken);P[ti].hand.push(given);
+          // 只有使用自己的掉包技能时才显示"（寻宝者）"，通过“绮丽诗篇”获得的掉包技能不显示
+          L.push(`${ai.name}${gs.globalOnlySwapOwner===null?'（寻宝者）':''}对 ${tgt.name} 【掉包】`);
+          // 只有真正的寻宝者才能通过集齐全部编号获胜
+          if((ai._nyaBorrow||ai.role)===ROLE_TREASURE&&isWinHand(P[ct].hand)){
+            P[ct].roleRevealed=true;
+            if(P[ti].role===ROLE_TREASURE&&isWinHand(P[ti].hand)){
+              P[ti].roleRevealed=true;
+              const reason2=`${ai.name} 与 ${P[ti].name} 互换后双方均集齐编号，两位寻宝者共同获胜！`;
+              return{...gs,players:P,deck:D,discard:Disc,log:[...L,reason2],gameOver:{winner:ROLE_TREASURE,reason:reason2,winnerIdx:ct,winnerIdx2:ti}};
+            }
+            return{...gs,players:P,deck:D,discard:Disc,log:[...L,`${ai.name} 掉包后获胜！`],gameOver:{winner:ROLE_TREASURE,reason:`${ai.name} 通过掉包集齐全部编号并获胜！`,winnerIdx:ct}};
+          }
           if(P[ti].role===ROLE_TREASURE&&isWinHand(P[ti].hand)){
             P[ti].roleRevealed=true;
-            const reason2=`${ai.name} 与 ${P[ti].name} 互换后双方均集齐编号，两位寻宝者共同获胜！`;
-            return{...gs,players:P,deck:D,discard:Disc,log:[...L,reason2],gameOver:{winner:ROLE_TREASURE,reason:reason2,winnerIdx:ct,winnerIdx2:ti}};
+            const reason3=`${P[ti].name} 因掉包获得最后一张编号，寻宝者获胜！`;
+            return{...gs,players:P,deck:D,discard:Disc,log:[...L,reason3],gameOver:{winner:ROLE_TREASURE,reason:reason3,winnerIdx:ti}};
           }
-          return{...gs,players:P,deck:D,discard:Disc,log:[...L,`${ai.name} 掉包后获胜！`],gameOver:{winner:ROLE_TREASURE,reason:`${ai.name} 通过掉包集齐全部编号并获胜！`,winnerIdx:ct}};
-        }
-        if(P[ti].role===ROLE_TREASURE&&isWinHand(P[ti].hand)){
-          P[ti].roleRevealed=true;
-          const reason3=`${P[ti].name} 因掉包获得最后一张编号，寻宝者获胜！`;
-          return{...gs,players:P,deck:D,discard:Disc,log:[...L,reason3],gameOver:{winner:ROLE_TREASURE,reason:reason3,winnerIdx:ti}};
         }
       }
     }
@@ -1829,6 +2047,10 @@ function aiStep(gs){
     if (aiEffRole !== ROLE_HUNTER || getHunterTargets().length === 0) {
         L.push(`${ai.name} 未使用技能，结束回合`);
     } else {
+        if(!P[ct].roleRevealed){
+          P[ct].roleRevealed=true;
+          L.push(`${ai.name} 的身份揭晓：追猎者`);
+        }
         L.push(`${ai.name} 停止了追捕`);
     }
   }
@@ -1842,13 +2064,17 @@ function aiStep(gs){
   // AI状态机扭转关键：只有追猎者才能在同一回合内连续追捕并留在 AI_TURN
   const hasValidTargets = getHunterTargets().length > 0;
   const hasZoneCards = P[ct].hand.filter(c=>!c.isGod).length > 0;
-  if (aiEffRole === ROLE_HUNTER && huntContinue && hasZoneCards && hasValidTargets) {
-      nextGs = {...gs, players:P, deck:D, discard:Disc, log:L, phase: 'AI_TURN', currentTurn: ct, huntAbandoned: newAbandoned, skillUsed: false, _drawnCard: gs._drawnCard};
-  } else {
-      nextGs = startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct, huntAbandoned: newAbandoned, skillUsed: (useSkill || gs.skillUsed)});
+  try{
+    if (aiEffRole === ROLE_HUNTER && huntContinue && hasZoneCards && hasValidTargets) {
+        nextGs = {...gs, players:P, deck:D, discard:Disc, log:L, phase: 'AI_TURN', currentTurn: ct, huntAbandoned: newAbandoned, skillUsed: false, _drawnCard: gs._drawnCard};
+    } else {
+        nextGs = startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct, huntAbandoned: newAbandoned, skillUsed: (useSkill || gs.skillUsed)});
+    }
+  }catch(e){
+    throw new Error(`${ai.name} 回合收尾失败: ${e?.message||'未知错误'}`);
   }
 
-  return{...nextGs,_aiDrawnCard:gs._drawnCard??nextGs._drawnCard??null,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction};
+  return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction};
 }
 
 // 检定牌堆
@@ -1893,7 +2119,7 @@ function handleInspection(playerIndex, gs) {
   // 翻开检定牌
   const drawnCard = newGs.inspectionDeck.shift();
   // 结算检定牌效果
-  const L = [...newGs.log];
+  const L = [...(Array.isArray(newGs.log)?newGs.log:[])];
   const P = [...newGs.players];
   switch (drawnCard.effect) {
     case 'adjacentDamageHP': {
@@ -2004,15 +2230,32 @@ function handleInspection(playerIndex, gs) {
   }
   // 将检定牌放入弃牌堆
   newGs.inspectionDiscard.push(drawnCard);
+  newGs._inspectionSeq = (gs?._inspectionSeq || 0) + 1;
+  newGs._inspectionCard = drawnCard;
+  newGs._inspectionTarget = playerIndex;
   // 更新游戏状态
   newGs.players = P;
   newGs.log = L;
   return newGs;
 }
 
+function mergeInspectionMeta(target, inspectionResult){
+  return {
+    ...target,
+    inspectionDeck: inspectionResult.inspectionDeck,
+    inspectionDiscard: inspectionResult.inspectionDiscard,
+    sealLooseningCount: inspectionResult.sealLooseningCount,
+    houndsOfTindalosActive: inspectionResult.houndsOfTindalosActive,
+    houndsOfTindalosTarget: inspectionResult.houndsOfTindalosTarget,
+    _inspectionSeq: inspectionResult._inspectionSeq,
+    _inspectionCard: inspectionResult._inspectionCard,
+    _inspectionTarget: inspectionResult._inspectionTarget,
+  };
+}
+
 // 检查并处理检定牌
 function checkInspection(playerIndex, oldSan, newSan, gs) {
-  if (newSan < 6 && oldSan >= 6) {
+  if (newSan <= 6) {
     return handleInspection(playerIndex, gs);
   }
   return gs;
@@ -2276,21 +2519,36 @@ function CardFlipAnim({card,triggerName,targetPid,exiting}){
   const [traveled,setTraveled]=React.useState(false);
   React.useEffect(()=>{const t=setTimeout(()=>setTraveled(true),650);return()=>clearTimeout(t);},[]);
 
-  // Compute destination: target player panel centre (or screen centre for self)
-  const destStyle=React.useMemo(()=>{
-    if(targetPid>0){
-      const el=document.querySelector(`[data-pid="${targetPid}"]`);
-      if(el){
-        const r=el.getBoundingClientRect();
-        const dx=r.left+r.width/2;
-        const dy=r.top+r.height/2;
-        // Deck start position (top:8% right:6%) — calc offset
-        const srcX=window.innerWidth*0.94-35;
-        const srcY=window.innerHeight*0.08;
-        return{'--dest-x':`${dx-35}px`,'--dest-y':`${dy-47}px`,'--src-x':`${srcX}px`,'--src-y':`${srcY}px`};
-      }
+  const getDeckCenter=()=>{
+    const deckEl=document.querySelector('[data-deck-pile]');
+    if(deckEl){
+      const r=deckEl.getBoundingClientRect();
+      return {x:r.left+r.width/2,y:r.top+r.height/2};
     }
-    return null; // self: use existing CSS keyframe
+    return {x:window.innerWidth*0.94-35,y:window.innerHeight*0.08};
+  };
+  const getHandCenter=pid=>{
+    if(pid===0){
+      const handEl=document.querySelector('[data-hand-area]');
+      if(handEl){
+        const r=handEl.getBoundingClientRect();
+        return {x:r.left+r.width/2,y:r.top+r.height/2};
+      }
+      return {x:window.innerWidth*0.5,y:window.innerHeight*0.8};
+    }
+    const el=document.querySelector(`[data-pid="${pid}"]`);
+    if(el){
+      const r=el.getBoundingClientRect();
+      return {x:r.left+r.width/2,y:r.top+r.height*0.74};
+    }
+    return {x:window.innerWidth*0.5,y:window.innerHeight*0.25};
+  };
+
+  // Compute destination: target player's hand area
+  const destStyle=React.useMemo(()=>{
+    const src=getDeckCenter();
+    const dest=getHandCenter(targetPid??0);
+    return{'--dest-x':`${dest.x-35}px`,'--dest-y':`${dest.y-47}px`,'--src-x':`${src.x-35}px`,'--src-y':`${src.y-47}px`};
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]); // measure once on mount
 
@@ -2303,10 +2561,8 @@ function CardFlipAnim({card,triggerName,targetPid,exiting}){
         background:'linear-gradient(135deg,#1e1208,#0e0804)',
         border:'1.5px solid #4a3010',
         boxShadow:'0 4px 18px rgba(0,0,0,0.7)',
-        ...(destStyle||{}),
-        animation:destStyle
-          ?'cardTravelToPlayer 0.65s cubic-bezier(0.3,0,0.2,1) forwards'
-          :'cardTravelToDeck 0.65s cubic-bezier(0.3,0,0.2,1) forwards',
+        ...destStyle,
+        animation:'cardTravelToPlayer 0.65s cubic-bezier(0.3,0,0.2,1) forwards',
       }}>
         <div style={{position:'absolute',inset:0,borderRadius:4,
           background:'repeating-linear-gradient(45deg,#2a1a0820 0px,#2a1a0820 1px,transparent 1px,transparent 4px)'}}/>
@@ -2518,7 +2774,7 @@ function KnifeEffect({targets}){
 }
 
 // ── Discard Move Overlay ──────────────────────────────────────
-// Shows a card-back flying from hand area (bottom-centre) to discard pile (left-centre)
+// Shows a card-back flying from the actor's hand area to the discard pile
 function DiscardMoveOverlay({anim,exiting}){
   if(!anim)return null;
   const card=anim.card||null;
@@ -2542,15 +2798,7 @@ function DiscardMoveOverlay({anim,exiting}){
     }
     
     let startX, startY;
-    if(targetPid>0){
-      const el=document.querySelector(`[data-pid="${targetPid}"]`);
-      if(el){
-        const r=el.getBoundingClientRect();
-        startX=r.left+r.width/2;
-        startY=r.top+r.height/2;
-      }
-    } else {
-      // Find actual hand area position via DOM query
+    if(targetPid===0){
       const handEl = document.querySelector('[data-hand-area]');
       if(handEl){
         const hr = handEl.getBoundingClientRect();
@@ -2559,6 +2807,16 @@ function DiscardMoveOverlay({anim,exiting}){
       } else {
         startX = window.innerWidth * 0.5;
         startY = window.innerHeight * 0.8;
+      }
+    } else {
+      const el=document.querySelector(`[data-pid="${targetPid}"]`);
+      if(el){
+        const r=el.getBoundingClientRect();
+        startX=r.left+r.width/2;
+        startY=r.top+r.height*0.74;
+      }else{
+        startX = window.innerWidth * 0.5;
+        startY = window.innerHeight * 0.25;
       }
     }
     
@@ -4519,7 +4777,7 @@ function PileDisplay({deckCount,discardCount,discardTop,compact,deckRef,discardR
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative',minWidth:0,minHeight:compact?80:222}}>
       {/* Deck — top-right corner */}
-      <div ref={deckRef} style={{position:'absolute',top:4,right:8,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+      <div ref={deckRef} data-deck-pile style={{position:'absolute',top:4,right:8,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
         <DeckPile count={deckCount}/>
         <div style={{fontFamily:"'Cinzel',serif",fontSize:8,color:'#7a5a2a',letterSpacing:1,textAlign:'center'}}>牌堆:{deckCount}张</div>
       </div>
@@ -5723,6 +5981,7 @@ export default function Game(){
   const timerRef=useRef(null);
   const logRef=useRef(null);
   const shakeTimerRef=useRef(null);
+  const lastInspectionSeqRef=useRef(0);
 
   // ── Responsive layout ──────────────────────────────────────
   const {w:vw}=useWindowSize();
@@ -5730,6 +5989,14 @@ export default function Game(){
   const isSmall=vw<860;
 
   useEffect(()=>{if(logRef.current)logRef.current.scrollTop=logRef.current.scrollHeight;},[gs?.log?.length]);
+
+  useEffect(()=>{
+    if(!gs||showTutorial||anim||animQueueRef.current.length>0||gs.gameOver)return;
+    const seq=gs._inspectionSeq||0;
+    if(seq<=lastInspectionSeqRef.current||!gs._inspectionCard)return;
+    lastInspectionSeqRef.current=seq;
+    triggerAnimQueue([{type:'DRAW_CARD',card:gs._inspectionCard,triggerName:'检定牌',targetPid:gs._inspectionTarget??0}],gs);
+  },[gs?._inspectionSeq,gs?._inspectionCard,gs?._inspectionTarget,gs?.gameOver,anim,showTutorial]);
 
   // Measure player self-panel rect for tutorial steps 2-4 pointer
   useEffect(()=>{
@@ -5979,6 +6246,18 @@ export default function Game(){
     setAnim(queue[0]);
   }
 
+  function buildBewitchForcedCardQueue(fromPid,toPid,card,triggerName,statQueue,msgs){
+    const ordered=[{type:'SKILL_BEWITCH',msgs,targetIdx:toPid}];
+    if(toPid!=null&&toPid>=0){
+      ordered.push({type:'CARD_TRANSFER',fromPid,dest:'player',toPid,count:1});
+    }
+    if(card){
+      ordered.push({type:'DRAW_CARD',card,triggerName,targetPid:toPid});
+    }
+    ordered.push(...statQueue.filter(a=>a.type!=='CARD_TRANSFER'));
+    return ordered;
+  }
+
   // Detect stuck state: AI's turn but phase is not AI_TURN (e.g. got stuck in DRAW_REVEAL)
   // This can happen in rare edge cases; recover by forcing the turn to advance
   useEffect(()=>{
@@ -5986,7 +6265,7 @@ export default function Game(){
     if(gs.currentTurn===0)return; // player's turn, normal
     const aiPhase=gs.phase;
     // AI is in a phase that requires player interaction — this is a stuck state
-    const badPhases=['DRAW_REVEAL','DRAW_SELECT_TARGET','GOD_CHOICE','NYA_BORROW',
+    const badPhases=['ACTION','DRAW_REVEAL','DRAW_SELECT_TARGET','GOD_CHOICE','NYA_BORROW',
                      'SWAP_SELECT_TARGET','SWAP_GIVE_CARD','BEWITCH_SELECT_CARD','BEWITCH_SELECT_TARGET',
                      'HUNT_SELECT_TARGET','HUNT_CONFIRM','DISCARD_PHASE'];
     if(!badPhases.includes(aiPhase))return;
@@ -5995,11 +6274,32 @@ export default function Game(){
       setGs(p=>{
         if(!p||p._isMP||p.currentTurn===0)return p;
         if(!badPhases.includes(p.phase))return p;
-        return startNextTurn({...p,currentTurn:p.currentTurn,skillUsed:true,restUsed:false,huntAbandoned:[]});
+        const safeLog=[...p.log,`${p.players[p.currentTurn]?.name||'该AI'} 的回合状态异常，系统强制推进流程`];
+        return startNextTurn({...p,log:safeLog,currentTurn:p.currentTurn,skillUsed:true,restUsed:false,huntAbandoned:[]});
       });
     },500);
     return()=>clearTimeout(t);
   },[gs?.currentTurn,gs?.phase,gs?._isMP,anim,gs?.gameOver,showTutorial]);
+
+  // Hard watchdog: if an AI turn stays in AI_TURN without any progress, recover even when the normal
+  // AI-turn effect failed to arm (for example because some stale animation flag never cleared).
+  useEffect(()=>{
+    if(!gs||gs._isMP||gs.gameOver||showTutorial)return;
+    if(gs.currentTurn===0||gs.phase!=='AI_TURN')return;
+    const guardTurnKey=gs._turnKey;
+    const guardTurn=gs.currentTurn;
+    const guardLogLen=gs.log?.length||0;
+    const watchdog=setTimeout(()=>{
+      setGs(p=>{
+        if(!p||p._isMP||p.gameOver||p.currentTurn===0||p.phase!=='AI_TURN')return p;
+        if((guardTurnKey!=null&&p._turnKey!==guardTurnKey)||p.currentTurn!==guardTurn)return p;
+        if((p.log?.length||0)!==guardLogLen)return p;
+        const safeLog=[...p.log,`${p.players[p.currentTurn]?.name||'该AI'} 的AI回合疑似卡死，系统强制推进流程`];
+        return startNextTurn({...p,log:safeLog,currentTurn:p.currentTurn,skillUsed:true,restUsed:false,huntAbandoned:[]});
+      });
+    },20000);
+    return()=>clearTimeout(watchdog);
+  },[gs?.currentTurn,gs?.phase,gs?._turnKey,gs?.log?.length,gs?._isMP,gs?.gameOver,showTutorial]);
 
   // AI turn
   useEffect(()=>{
@@ -6008,102 +6308,134 @@ export default function Game(){
     // (normal AI turn takes ~700ms + anim duration; 3.5s is generous but not user-visible)
     const watchdog=setTimeout(()=>{
       console.warn('[AI watchdog] AI turn exceeded 3.5s, force-advancing');
-      const safeGs=startNextTurn({...gs,currentTurn:gs.currentTurn,skillUsed:true,restUsed:false,huntAbandoned:[]});
+      const safeLog=[...gs.log,`${gs.players[gs.currentTurn]?.name||'该AI'} 的回合处理超时，系统强制结束其回合`];
+      const safeGs=startNextTurn({...gs,log:safeLog,currentTurn:gs.currentTurn,skillUsed:true,restUsed:false,huntAbandoned:[]});
       setGs(safeGs);
     },20000);
     timerRef.current=setTimeout(()=>{
       let rawResult,newGs;
       try{
         rawResult=aiStep(gs);
-        const{_aiDrawnCard:_a,_aiName:_n,_drawnCard:_d,_playersBeforeNextDraw:_pbn,...stripped}=rawResult;
+        const{_aiDrawnCard:_a,_aiName:_n,_playersBeforeNextDraw:_pbn,...stripped}=rawResult;
         newGs=stripped;
       }catch(e){
         console.error('[aiStep error]',e);
         // Safety fallback: forcibly advance to next turn so game never freezes
-        const safeGs=startNextTurn({...gs,currentTurn:gs.currentTurn,skillUsed:false,restUsed:false});
+        const errMsg=e?.message?`（${e.message}）`:'';
+        const safeLog=[...gs.log,`${gs.players[gs.currentTurn]?.name||'该AI'} 的回合处理异常${errMsg}，系统强制结束其回合`];
+        const safeGs=startNextTurn({...gs,log:safeLog,currentTurn:gs.currentTurn,skillUsed:false,restUsed:false,huntAbandoned:[]});
         setGs(safeGs);return;
       }
       // If AI is hunting player 0, pause here for player input (after draw card anim)
       if(newGs.phase==='PLAYER_REVEAL_FOR_HUNT'){
+        const oldLog=Array.isArray(gs.log)?gs.log:[];
+        const nextLog=Array.isArray(newGs.log)?newGs.log:oldLog;
+        const aiTurnDrawnCard=rawResult._aiDrawnCard??gs._aiDrawnCard??gs._drawnCard??null;
+        const aiTurnDiscarded=rawResult._discardedDrawnCard??gs._discardedDrawnCard??false;
         const queue=[];
-        if(rawResult._aiDrawnCard) queue.push({type:'DRAW_CARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        if(aiTurnDrawnCard) queue.push({type:'DRAW_CARD',card:aiTurnDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        if(gs._playersBeforeThisDraw&&aiTurnDrawnCard){
+          const fakeGs = ps => ({...gs, players: ps});
+          const drawEffectQ=buildAnimQueue(fakeGs(gs._playersBeforeThisDraw),gs);
+          queue.push(...drawEffectQ);
+        }
         // Add discard anim if AI chose to discard the drawn card
-        const discardMsg=newGs.log.slice(gs.log.length).find(m=>m.includes('评估后选择弃置'));
-        if(discardMsg&&rawResult._aiDrawnCard){
-          queue.push({type:'DISCARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        if(aiTurnDiscarded&&aiTurnDrawnCard){
+          queue.push({type:'DISCARD',card:aiTurnDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
         }
         // Play draw and discard animations first, then show hunt animation
         triggerAnimQueue(queue, newGs, () => {
           // After draw animations complete, show hunt animation
-          triggerAnimQueue([{type:'SKILL_HUNT',msgs:newGs.log.slice(gs.log.length),targetIdx:0}], newGs);
+          triggerAnimQueue([{type:'SKILL_HUNT',msgs:nextLog.slice(oldLog.length),targetIdx:0}], newGs);
         });
         return;
       }
-      // Strip ALL animation-only temp fields before storing as real game state
-      const{_aiDrawnCard,_aiName,_drawnCard,_playersBeforeNextDraw,...stripped}=rawResult;
-      newGs=stripped; // reassign: stripped has _playersBeforeThisDraw from startNextTurn
-      const newMsgs=newGs.log.slice(gs.log.length);
-      const j=newMsgs.join(' ');
-      // Helper: build a gs-like object with substituted players for buildAnimQueue
-      // fakeGs: use gs.log as the baseline so buildAnimQueue correctly detects new messages
-      const fakeGs = ps => ({...gs, players: ps});
-      const queue=[];
-      // 1. Banner anim: 'YOUR_TURN' equivalent for AI — shown via gs.phase=AI_TURN before queue
-      //    (no explicit anim needed; the static UI banner shows when !anim)
-      // 2. Draw card anim for THIS AI (card drawn at turn start, stored in gs._drawnCard)
-      if(rawResult._aiDrawnCard) queue.push({type:'DRAW_CARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
-      // 2b. Stat changes caused by THIS AI's drawn card (draw effects: gs._playersBeforeThisDraw → gs.players)
-      if(gs._playersBeforeThisDraw&&rawResult._aiDrawnCard){
-        const drawEffectQ=buildAnimQueue(fakeGs(gs._playersBeforeThisDraw),gs);
-        queue.push(...drawEffectQ);
-      }
-      // 2c. Discard anim if AI chose to discard the drawn card
-      const discardMsg=newMsgs.find(m=>m.includes('评估后选择弃置'));
-      if(discardMsg&&rawResult._aiDrawnCard){
-        queue.push({type:'DISCARD',card:rawResult._aiDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???'});
-      }
-      // 3. Dice anim (if AI rested)
-      const restMsg=newMsgs.find(m=>m.includes('选择【休息】')&&m.includes('掷骰'));
-      if(restMsg){
-        const m=restMsg.match(/掷骰 (\d+)\+(\d+)，回复 (\d+)HP/);
-        if(m){const rd1=+m[1],rd2=+m[2],rh=+m[3];queue.push({type:'DICE_ROLL',d1:rd1,d2:rd2,heal:rh,rollerName:_aiName||gs.players[gs.currentTurn]?.name});}}
-      // 4. Skill anim (if used)
-      if(j.includes('掉包')) queue.push({type:'SKILL_SWAP',msgs:newMsgs});
-      else if(j.includes('【追捕】')||(j.includes('追捕')&&!j.includes('停止了追捕')&&!j.includes('放弃追捕'))){
-        const huntMsg=newMsgs.find(m=>m.includes('【追捕】')||m.includes('追捕'));
-        const huntMatch=huntMsg?.match(/对 (.+?) 【追捕】|追捕 (.+)/);
-        const huntName=huntMatch?.[1]||huntMatch?.[2];
-        const hti=huntName?newGs.players.findIndex(p=>p.name===huntName):-1;
-        queue.push({type:'SKILL_HUNT',msgs:newMsgs,targetIdx:hti>=0?hti:1});
-      }
-      else if(j.includes('蛊惑')){
-        const bwMsg=newMsgs.find(m=>m.includes('蛊惑'));
-        const bwMatch=bwMsg?.match(/对 (.+?) 【蛊惑】/);
-        const bwName=bwMatch?.[1];
-        const bwti=bwName?newGs.players.findIndex(p=>p.name===bwName):-1;
-        queue.push({type:'SKILL_BEWITCH',msgs:newMsgs,targetIdx:bwti>=0?bwti:1});
-      }
-      // 5. Stat changes from THIS AI's action only (not next draw — those belong to next AI's queue)
-      //    Compare gs (after this AI's draw) → _playersBeforeNextDraw (after action, before next draw)
-      const P_actionEnd=_playersBeforeNextDraw||newGs.players;
-      const actionStatQ=buildAnimQueue(gs,fakeGs(P_actionEnd));
-      // 6. Advance to next player's turn
-      if(newGs.currentTurn===0){
-        queue.push(...actionStatQ);
-        if(newGs.drawReveal?.card){
-          queue.push({type:'YOUR_TURN'},{type:'DRAW_CARD',card:newGs.drawReveal.card,triggerName:'你'});
-        }else{
-          // God card drawn: no drawReveal, card is in abilityData.godCard
-          const godCard=newGs.abilityData?.godCard;
-          queue.push({type:'YOUR_TURN'});
-          if(godCard) queue.push({type:'DRAW_CARD',card:godCard,triggerName:'你'});
+      try{
+        // Strip ALL animation-only temp fields before storing as real game state
+        const{_aiDrawnCard,_aiName,_playersBeforeNextDraw,...stripped}=rawResult;
+        newGs=stripped; // reassign: stripped has _playersBeforeThisDraw from startNextTurn
+        const oldLog=Array.isArray(gs.log)?gs.log:[];
+        const nextLog=Array.isArray(newGs.log)?newGs.log:oldLog;
+        const newMsgs=nextLog.slice(oldLog.length);
+        const j=newMsgs.join(' ');
+        // Helper: build a gs-like object with substituted players for buildAnimQueue
+        // fakeGs: use gs.log as the baseline so buildAnimQueue correctly detects new messages
+        const fakeGs = ps => ({...gs, players: ps});
+        const aiTurnDrawnCard=rawResult._aiDrawnCard??gs._aiDrawnCard??gs._drawnCard??null;
+        const aiTurnDiscarded=rawResult._discardedDrawnCard??gs._discardedDrawnCard??false;
+        const queue=[];
+        // 1. Banner anim: 'YOUR_TURN' equivalent for AI — shown via gs.phase=AI_TURN before queue
+        //    (no explicit anim needed; the static UI banner shows when !anim)
+        // 2. Draw card anim for THIS AI (card drawn at turn start, stored in gs._drawnCard)
+        if(aiTurnDrawnCard) queue.push({type:'DRAW_CARD',card:aiTurnDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        // 2b. Stat changes caused by THIS AI's drawn card (draw effects: gs._playersBeforeThisDraw → gs.players)
+        if(gs._playersBeforeThisDraw&&aiTurnDrawnCard){
+          const drawEffectQ=buildAnimQueue(fakeGs(gs._playersBeforeThisDraw),gs);
+          queue.push(...drawEffectQ);
         }
-      }else{
-        // AI next: action stat changes go before queue ends; draw effects for next AI
-        // will be shown at the start of that AI's own queue (after their banner + DRAW_CARD)
-        queue.push(...actionStatQ);
+        // 2c. Discard anim if AI chose to discard the drawn card
+        if(aiTurnDiscarded&&aiTurnDrawnCard){
+          queue.push({type:'DISCARD',card:aiTurnDrawnCard,triggerName:gs.players[gs.currentTurn]?.name||'???',targetPid:gs.currentTurn});
+        }
+        // 3. Dice anim (if AI rested)
+        const restMsg=newMsgs.find(m=>m.includes('选择【休息】')&&m.includes('掷骰'));
+        if(restMsg){
+          const m=restMsg.match(/掷骰 (\d+)\+(\d+)，回复 (\d+)HP/);
+          if(m){const rd1=+m[1],rd2=+m[2],rh=+m[3];queue.push({type:'DICE_ROLL',d1:rd1,d2:rd2,heal:rh,rollerName:rawResult._aiName||gs.players[gs.currentTurn]?.name});}}
+        // 4. Skill anim (if used)
+        const P_actionEnd=rawResult._playersBeforeNextDraw||newGs.players;
+        const actionStatQ=buildAnimQueue(gs,fakeGs(P_actionEnd));
+        let orderedActionQ=null;
+        if(j.includes('掉包')) queue.push({type:'SKILL_SWAP',msgs:newMsgs});
+        else if(j.includes('【追捕】')||(j.includes('追捕')&&!j.includes('停止了追捕')&&!j.includes('放弃追捕'))){
+          const huntMsg=newMsgs.find(m=>m.includes('【追捕】')||m.includes('追捕'));
+          const huntMatch=huntMsg?.match(/对 (.+?) 【追捕】|追捕 (.+)/);
+          const huntName=huntMatch?.[1]||huntMatch?.[2];
+          const hti=huntName?newGs.players.findIndex(p=>p.name===huntName):-1;
+          queue.push({type:'SKILL_HUNT',msgs:newMsgs,targetIdx:hti>=0?hti:1});
+        }
+        else if(j.includes('蛊惑')){
+          const bwMsg=newMsgs.find(m=>m.includes('蛊惑'));
+          const bwMatch=bwMsg?.match(/对 (.+?) 【蛊惑】/);
+          const bwName=bwMatch?.[1];
+          const bwti=bwName?newGs.players.findIndex(p=>p.name===bwName):-1;
+          const giftedMatch=bwMsg?.match(/赠予 \[([^\]]+)\]/);
+          const giftedLabel=giftedMatch?.[1];
+          const giftedCard=(bwti>=0&&giftedLabel)
+            ? (P_actionEnd[bwti]?.hand||[]).find(c=>c.key===giftedLabel||c.name===giftedLabel)
+            : null;
+          if(giftedCard&&bwti>=0){
+            orderedActionQ=buildBewitchForcedCardQueue(gs.currentTurn,bwti,giftedCard,P_actionEnd[bwti]?.name,actionStatQ,newMsgs);
+          }else{
+            queue.push({type:'SKILL_BEWITCH',msgs:newMsgs,targetIdx:bwti>=0?bwti:1});
+          }
+        }
+        // 5. Stat changes from THIS AI's action only (not next draw — those belong to next AI's queue)
+        //    Compare gs (after this AI's draw) → _playersBeforeNextDraw (after action, before next draw)
+        // 6. Advance to next player's turn
+        if(newGs.currentTurn===0){
+          queue.push(...(orderedActionQ||actionStatQ));
+          if(newGs.drawReveal?.card){
+            queue.push({type:'YOUR_TURN'},{type:'DRAW_CARD',card:newGs.drawReveal.card,triggerName:'你'});
+          }else{
+            // God card drawn: no drawReveal, card is in abilityData.godCard
+            const godCard=newGs.abilityData?.godCard;
+            queue.push({type:'YOUR_TURN'});
+            if(godCard) queue.push({type:'DRAW_CARD',card:godCard,triggerName:'你'});
+          }
+        }else{
+          // AI next: action stat changes go before queue ends; draw effects for next AI
+          // will be shown at the start of that AI's own queue (after their banner + DRAW_CARD)
+          queue.push(...(orderedActionQ||actionStatQ));
+        }
+        triggerAnimQueue(queue,newGs);
+      }catch(e){
+        console.error('[AI turn queue error]',e);
+        const errMsg=e?.message?`（${e.message}）`:'';
+        const safeLog=[...(Array.isArray(gs.log)?gs.log:[]),`${gs.players[gs.currentTurn]?.name||'该AI'} 的动画结算异常${errMsg}，系统强制结束其回合`];
+        const safeGs=startNextTurn({...gs,log:safeLog,currentTurn:gs.currentTurn,skillUsed:false,restUsed:false,huntAbandoned:[]});
+        setGs(safeGs);return;
       }
-      triggerAnimQueue(queue,newGs);
     },2100);
     return()=>{clearTimeout(timerRef.current);clearTimeout(watchdog);};
   },[gs?.currentTurn,gs?.phase,gs?._turnKey,anim,gs?.gameOver]);
@@ -7386,7 +7718,17 @@ export default function Game(){
     // 2. 最后，如果游戏仍未结束，且该寻宝者仍然存活，检查该寻宝者是否达成胜利条件
     if (drawerIdx === 0 && !P[0].isDead && P[0].role === '寻宝者' && isWinHand(P[0].hand)) {
       P[0].roleRevealed = true;
-      return { P, D, Disc, L, win: { winner: '寻宝者', reason: '你集齐了全部编号并获胜！' } };
+      const pendingWinGs = {
+        ...gs,
+        players: P,
+        deck: D,
+        discard: Disc,
+        log: [...L, '你集齐了全部编号！'],
+        phase: 'PLAYER_WIN_PENDING',
+        drawReveal: null,
+        abilityData: { winReason: '你集齐了全部编号并获胜！' }
+      };
+      return { P, D, Disc, L: pendingWinGs.log, pendingWinGs, d1, dodgeSuccess, who };
     }
     
     const newGs = { ...gs, players: P, deck: D, discard: Disc, log: L, phase: 'ACTION', drawReveal: null, abilityData: { fromRest: gs.abilityData?.fromRest, cthDrawsRemaining: gs.abilityData?.cthDrawsRemaining } };
@@ -7398,6 +7740,13 @@ export default function Game(){
     const result=handleTreasureDodge(gs,dr,false);
     if(result.win){
       setGs({...gs,players:result.P,deck:result.D,discard:result.Disc,log:result.L,gameOver:result.win,drawReveal:null});
+      return;
+    }
+    if(result.pendingWinGs){
+      pendingGsRef.current=result.pendingWinGs;
+      animQueueRef.current=[];
+      setGs(p=>p?{...p,phase:'ACTION',drawReveal:null}:p);
+      setAnim({type:'DICE_ROLL',d1:result.d1,d2:0,heal:0,rollerName:result.who,dodgeSuccess:result.dodgeSuccess});
       return;
     }
     if(dr.fromRest&&!result.win){
@@ -7448,6 +7797,13 @@ export default function Game(){
     const result=handleTreasureDodge(gs,dr,true);
     if(result.win){
       setGs({...gs,players:result.P,deck:result.D,discard:result.Disc,log:result.L,gameOver:result.win,drawReveal:null});
+      return;
+    }
+    if(result.pendingWinGs){
+      pendingGsRef.current=result.pendingWinGs;
+      animQueueRef.current=[];
+      setGs(p=>p?{...p,phase:'ACTION',drawReveal:null}:p);
+      setAnim({type:'DICE_ROLL',d1:result.d1,d2:0,heal:0,rollerName:'你',dodgeSuccess:result.dodgeSuccess});
       return;
     }
     if(dr.fromRest&&!result.win){_cthContinueRestDraws(result.newGs);return;}
@@ -7797,116 +8153,6 @@ export default function Game(){
     triggerAnimQueue([{type:'SKILL_SWAP',msgs:L.slice(-2)},swapTransfer1,swapTransfer2,...statQ],newGs);
   }
 
-  // AI 亮牌策略：选择与追猎者手牌匹配度最低的区域牌（降低被击中概率）
-  function aiChooseRevealCard(targetHand, hunterHand, log, discardPile){
-    const zoneCards=targetHand.filter(c=>!c.isGod);
-    if(!zoneCards.length)return targetHand[0]; // fallback
-    
-    // 分析游戏日志和弃牌堆，计算每张区域牌的安全分数
-    const scored=zoneCards.map(c=>{
-      let safetyScore=0;
-      
-      // 1. 查看游戏日志里有没有该追猎者收入手牌后，从未进入弃牌堆的区域牌
-      const hunterCardsInHand=[];
-      log.forEach(entry=>{
-        if(entry.includes('摸到') && entry.includes('[') && entry.includes(']')){
-          const cardMatch=entry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            // 检查这张牌是否被弃掉
-            const wasDiscarded=log.some(logEntry=>logEntry.includes('弃 [') && logEntry.includes(cardKey) && logEntry.includes(']'));
-            if(!wasDiscarded){
-              // 解析牌的字母和数字
-              const letterMatch=cardKey.match(/[A-Z]/);
-              const numberMatch=cardKey.match(/\d+/);
-              if(letterMatch && numberMatch){
-                hunterCardsInHand.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
-              }
-            }
-          }
-        }
-      });
-      
-      // 避免展示跟这些牌同字母同数字的区域牌
-      const isSimilarToHunterCard=hunterCardsInHand.some(hc=>hc.letter===c.letter||hc.number===c.number);
-      if(!isSimilarToHunterCard){
-        safetyScore+=3;
-      }
-      
-      // 2. 查看历史追捕记录
-      let recentHuntEntries=[];
-      log.forEach((entry,index)=>{
-        if(entry.includes('追捕') && entry.includes('亮出')){
-          // 找到最近的追捕记录
-          recentHuntEntries.push({entry,index});
-        }
-      });
-      
-      // 按时间倒序排序
-      recentHuntEntries.sort((a,b)=>b.index-a.index);
-      
-      // 检查最近一次追捕是否放弃
-      if(recentHuntEntries.length>0){
-        const lastHuntEntry=recentHuntEntries[0].entry;
-        if(lastHuntEntry.includes('亮出') && !lastHuntEntry.includes('受')){
-          // 追捕者放弃了追捕
-          const cardMatch=lastHuntEntry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            const letterMatch=cardKey.match(/[A-Z]/);
-            const numberMatch=cardKey.match(/\d+/);
-            if(letterMatch && numberMatch){
-              const revealedCard={letter:letterMatch[0],number:parseInt(numberMatch[0])};
-              if(revealedCard.letter===c.letter||revealedCard.number===c.number){
-                safetyScore+=2;
-              }
-            }
-          }
-        }
-      }
-      
-      // 3. 查看从追猎者手牌进入弃牌堆的那些牌
-      const discardedHunterCards=[];
-      log.forEach(entry=>{
-        if(entry.includes('弃 [') && entry.includes(']')){
-          const cardMatch=entry.match(/\[(.*?)\]/);
-          if(cardMatch){
-            const cardKey=cardMatch[1];
-            const letterMatch=cardKey.match(/[A-Z]/);
-            const numberMatch=cardKey.match(/\d+/);
-            if(letterMatch && numberMatch){
-              discardedHunterCards.push({letter:letterMatch[0],number:parseInt(numberMatch[0])});
-            }
-          }
-        }
-      });
-      
-      // 计算每种字母/数字的弃牌次数
-      const letterCount={};
-      const numberCount={};
-      discardedHunterCards.forEach(card=>{
-        letterCount[card.letter]=(letterCount[card.letter]||0)+1;
-        numberCount[card.number]=(numberCount[card.number]||0)+1;
-      });
-      
-      // 某种字母/数字编号弃掉的牌越多，有这个编号的区域牌越安全
-      safetyScore+=letterCount[c.letter]||0;
-      safetyScore+=numberCount[c.number]||0;
-      
-      return{c,safetyScore};
-    });
-    
-    // 按安全分数从高到低排序
-    scored.sort((a,b)=>b.safetyScore-a.safetyScore);
-    
-    // 如果有多个安全分数相同的牌，随机选择一张
-    const maxScore=scored[0].safetyScore;
-    const bestCards=scored.filter(s=>s.safetyScore===maxScore);
-    const randomIndex=Math.floor(Math.random()*bestCards.length);
-    
-    return bestCards[randomIndex].c;
-  }
-
   function huntSelectTarget(ti){
     let P=copyPlayers(gs.players);P[0].roleRevealed=true;
     const tHand=P[ti].hand.filter(c=>!c.isGod);
@@ -8079,15 +8325,14 @@ export default function Game(){
 
     const win=checkWin(P,gs._isMP);
     const newAbandoned = gs.huntAbandoned || []; // AI 在发起追捕时已经把你标记过Abandoned了
-    const remainingTargets = P.filter((p, i) => !p.isDead && i !== huntingAI && p.role !== '追猎者' && !newAbandoned.includes(i));
-    const wantsToHuntAgain = remainingTargets.length > 0 && P[huntingAI].hand.filter(c=>!c.isGod).length > 0 && Math.random() < 0.97;
+    const wantsToHuntAgain = shouldHunterKeepChasing(P,huntingAI,newAbandoned);
 
     const baseGs={...gs,players:P,discard:Disc,log:L,abilityData:{},phase:'ACTION', huntAbandoned: newAbandoned};
 
     let newGs;
     if (win) newGs = {...baseGs, gameOver:win};
     // 决定是让 AI 重新进入 AI_TURN 继续追杀，还是结束该回合
-    else if (wantsToHuntAgain) newGs = {...baseGs, phase: 'AI_TURN', currentTurn: huntingAI, skillUsed: true};
+    else if (wantsToHuntAgain) newGs = {...baseGs, phase: 'AI_TURN', currentTurn: huntingAI, skillUsed: false, restUsed: false, _drawnCard: gs._drawnCard, _aiDrawnCard: gs._aiDrawnCard??gs._drawnCard??null, _aiName: aiHunterName};
     else newGs = startNextTurn({...baseGs, currentTurn: huntingAI, skillUsed: true});
 
     const queue=[{type:'SKILL_HUNT',msgs:L.slice(-3),targetIdx:0},...buildAnimQueue(gs,newGs)];
@@ -8148,27 +8393,28 @@ export default function Game(){
           effectMsg += '，身份揭晓：邪祀者';
         }
       } else {
-        const oldSan=P[ti].san;P[ti].san=clamp(P[ti].san-cost);const newSan=P[ti].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(ti,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
+        P[ti].san=clamp(P[ti].san-cost);const newSan=P[ti].san;if(newSan<=6){const inspectionResult=handleInspection(ti,{players:P,deck:D,discard:Disc,log:gs.log||[],inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
         effectMsg = `${P[ti].name} 遭遇邪神 ${bewitchCard.name}（第${P[ti].godEncounters}次），失去${cost}SAN`;
       }
       L.push(effectMsg);
       const forcedConvert=!!(P[ti].godName&&P[ti].godName!==bewitchCard.godKey);
-      const gres=resolveGodEncounterForAI(ti,bewitchCard,P,Disc,forcedConvert);
+      const gres=resolveGodEncounterForAI(ti,bewitchCard,P,D,Disc,gs,forcedConvert);
       P=gres.P;Disc=gres.Disc;L.push(...gres.msgs);
       const win=checkWin(P,gs._isMP);
       const newGs={...gs,players:P,deck:D,discard:Disc,log:L,abilityData:{},phase:'ACTION',skillUsed:true,...(win?{gameOver:win}:{})};
-      triggerAnimQueue([{type:'SKILL_BEWITCH',msgs:L.slice(-3),targetIdx:ti},...buildAnimQueue(gs,newGs)],newGs);
+      const statQueue=buildAnimQueue(gs,newGs);
+      triggerAnimQueue(buildBewitchForcedCardQueue(0,ti,bewitchCard,P[ti]?.name,statQueue,L.slice(-3)),newGs);
       return;
     }
     const res=applyFx(bewitchCard,ti,ti,P,D,Disc,gs);L.push(...res.msgs);
     res.P[ti].hand.push(bewitchCard);
     const win=checkWin(res.P,gs._isMP);
     const newGs={...gs,players:res.P,deck:res.D,discard:res.Disc,log:L,abilityData:{},phase:'ACTION',skillUsed:true,...(res.statePatch||{}),...(win?{gameOver:win}:{})};
-    triggerAnimQueue([
-      {type:'SKILL_BEWITCH',msgs:L.slice(-3),targetIdx:ti},
-      {type:'DRAW_CARD',card:bewitchCard,triggerName:res.P[ti]?.name,targetPid:ti},
-      ...buildAnimQueue(gs,newGs),
-    ],newGs);
+    const statQueue=buildAnimQueue(gs,newGs);
+    triggerAnimQueue(
+      buildBewitchForcedCardQueue(0,ti,bewitchCard,res.P[ti]?.name,statQueue,L.slice(-3)),
+      newGs
+    );
   }
 
   // ── God choice handlers ────────────────────────────────────
@@ -8176,19 +8422,29 @@ export default function Game(){
     // action: 'worship'|'upgrade'|'keepHand'|'discard'|'forcedConvert'
     const godCard=gs.abilityData?.godCard;if(!godCard)return;
     let P=copyPlayers(gs.players),Disc=[...gs.discard];const L=[...gs.log];
+    let inspectionMeta={
+      inspectionDeck: gs.inspectionDeck,
+      inspectionDiscard: gs.inspectionDiscard,
+      sealLooseningCount: gs.sealLooseningCount,
+      houndsOfTindalosActive: gs.houndsOfTindalosActive,
+      houndsOfTindalosTarget: gs.houndsOfTindalosTarget,
+      _inspectionSeq: gs._inspectionSeq||0,
+      _inspectionCard: gs._inspectionCard||null,
+      _inspectionTarget: gs._inspectionTarget??null,
+    };
     const gk=godCard.godKey;
     const alreadyWorship=P[0].godName===gk;
     // 扣减SAN值（在动画播放之前）
     const godEncounterCost=gs.abilityData?.godEncounterCost||0;
     if(godEncounterCost>0){
-      const oldSan=P[0].san;P[0].san=clamp(P[0].san-godEncounterCost);const newSan=P[0].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}
+      P[0].san=clamp(P[0].san-godEncounterCost);const newSan=P[0].san;if(newSan<=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}
     }
     if(action==='keepHand'){
       P[0].hand.push({...godCard});
       L.push('你（邪祀者）将邪神牌秘密收入手牌');
     } else if(action==='worship'||action==='upgrade'||action==='forcedConvert'){
       if(action==='forcedConvert'||(P[0].godName&&P[0].godName!==gk)){
-        const oldSan=P[0].san;P[0].san=clamp(P[0].san-1);const newSan=P[0].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...P[0].godZone);P[0].godZone=[];P[0].godName=null;P[0].godLevel=0;
+        P[0].san=clamp(P[0].san-1);const newSan=P[0].san;if(newSan<=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...P[0].godZone);P[0].godZone=[];P[0].godName=null;P[0].godLevel=0;
         L.push('改信新神，失去1SAN，旧神牌入弃牌堆');
       }
       if(alreadyWorship&&action==='upgrade'){
@@ -8200,7 +8456,7 @@ export default function Game(){
         L.push(`你信仰了 ${godCard.name}，获得${godCard.power}(Lv.1)`);
       }
       // Kick out anyone else worshipping same god
-      P.forEach((p,i)=>{if(i>0&&p.godName===gk){const oldSan=p.san;p.san=clamp(p.san-1);const newSan=p.san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
+      P.forEach((p,i)=>{if(i>0&&p.godName===gk){p.san=clamp(p.san-1);const newSan=p.san;if(newSan<=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
     } else {
       Disc.push({...godCard});L.push('你放弃了邪神的馈赠');
     }
@@ -8209,7 +8465,7 @@ export default function Game(){
     const consumesSlot=action==='worship'||action==='forcedConvert';
     // 保留abilityData中的cthDrawsRemaining信息
     const newGs={...gs,players:P,discard:Disc,log:L,phase:'ACTION',abilityData:gs.abilityData,
-      godTriggeredThisTurn:consumesSlot};
+      godTriggeredThisTurn:consumesSlot,...inspectionMeta};
     // 构建动画队列并执行，在动画完成后检查游戏是否结束
     const queue=buildAnimQueue(gs,newGs);
     if(queue.length){
@@ -8309,7 +8565,7 @@ export default function Game(){
   }
 
   function doRest(){
-    if(phase!=='ACTION'||isBlocked||gs.restUsed||gs.skillUsed||P[0].disableRest)return;
+    if(phase!=='ACTION'||isBlocked||gs.restUsed||gs.skillUsed||gs.players?.[0]?.disableRest)return;
     const d1=1+(Math.random()*6|0), d2=1+(Math.random()*6|0);
     const heal=Math.max(d1,d2);
     let P=copyPlayers(gs.players);
@@ -8404,11 +8660,9 @@ export default function Game(){
       if(drawnCard&&(ph==='DRAW_REVEAL'||ph==='GOD_CHOICE'||ph==='DRAW_SELECT_TARGET'||ph==='ACTION')){
         const drawerName=newGs.players[newGs.currentTurn]?.name||'???';
         const drawerPid=newGs.currentTurn;
-        receivedGsRef.current=true; // 遮蔽态不对外广播；真实 gs 由 advanceQueue→setGs→useEffect([gs]) 正常广播
-        // 注意：此处不设 suppressNextBroadcastRef，advanceQueue 应用真实 gs 后必须广播给其他玩家
+        receivedGsRef.current=true;
         pendingGsRef.current=newGs;
         animQueueRef.current=[...drawStatQ];
-        setGs({...newGs,phase:'ACTION',drawReveal:null,abilityData:{}});
         setAnim({type:'DRAW_CARD',card:drawnCard,triggerName:drawerName,targetPid:drawerPid});
         return;
       }
@@ -8419,7 +8673,6 @@ export default function Game(){
       const drawerPid=newGs.currentTurn;
       pendingGsRef.current=newGs;
       animQueueRef.current=[...drawStatQ];
-      setGs({...newGs,phase:'ACTION',drawReveal:null,abilityData:{}});
       setAnim({type:'DRAW_CARD',card:newGs.drawReveal.card,triggerName:drawerName,targetPid:drawerPid});
       return;
     }
@@ -8743,11 +8996,21 @@ export default function Game(){
     let P=copyPlayers(gs.players),Disc=[...gs.discard];
     P[0].hand.splice(idx,1);
     const L=[...gs.log];
+    let inspectionMeta={
+      inspectionDeck: gs.inspectionDeck,
+      inspectionDiscard: gs.inspectionDiscard,
+      sealLooseningCount: gs.sealLooseningCount,
+      houndsOfTindalosActive: gs.houndsOfTindalosActive,
+      houndsOfTindalosTarget: gs.houndsOfTindalosTarget,
+      _inspectionSeq: gs._inspectionSeq||0,
+      _inspectionCard: gs._inspectionCard||null,
+      _inspectionTarget: gs._inspectionTarget??null,
+    };
     if(isUpgrade){
       P[0].godLevel++;P[0].godZone.push({...godCard});
       L.push(`你从手牌升级邪神之力至Lv.${P[0].godLevel}（骷髅头不计）`);
     } else if(P[0].godName&&P[0].godName!==godKey){
-      const oldSan=P[0].san;P[0].san=clamp(P[0].san-1);const newSan=P[0].san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...P[0].godZone);
+      P[0].san=clamp(P[0].san-1);const newSan=P[0].san;if(newSan<=6){const inspectionResult=handleInspection(0,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...P[0].godZone);
       P[0].godZone=[];P[0].godName=null;P[0].godLevel=0;
       L.push('改信新神，SAN-1，旧神牌入弃牌堆');
       P[0].godName=godKey;P[0].godLevel=1;P[0].godZone=[{...godCard}];
@@ -8756,10 +9019,10 @@ export default function Game(){
       P[0].godName=godKey;P[0].godLevel=1;P[0].godZone=[{...godCard}];
       L.push(`你从手牌直接信仰 ${godCard.name}，获得${godCard.power}(Lv.1)（骷髅头不计）`);
     }
-    P.forEach((p,i)=>{if(i>0&&p.godName===godKey){const oldSan=p.san;p.san=clamp(p.san-1);const newSan=p.san;if(newSan<6&&oldSan>=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,inspectionDeck:gs.inspectionDeck,inspectionDiscard:gs.inspectionDiscard,sealLooseningCount:gs.sealLooseningCount,houndsOfTindalosActive:gs.houndsOfTindalosActive,houndsOfTindalosTarget:gs.houndsOfTindalosTarget});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
+    P.forEach((p,i)=>{if(i>0&&p.godName===godKey){p.san=clamp(p.san-1);const newSan=p.san;if(newSan<=6){const inspectionResult=handleInspection(i,{players:P,deck:D,discard:Disc,log:L,inspectionDeck:inspectionMeta.inspectionDeck,inspectionDiscard:inspectionMeta.inspectionDiscard,sealLooseningCount:inspectionMeta.sealLooseningCount,houndsOfTindalosActive:inspectionMeta.houndsOfTindalosActive,houndsOfTindalosTarget:inspectionMeta.houndsOfTindalosTarget,_inspectionSeq:inspectionMeta._inspectionSeq});P=inspectionResult.players;D=inspectionResult.deck;Disc=inspectionResult.discard;inspectionMeta=mergeInspectionMeta(inspectionMeta,inspectionResult);L.splice(0,L.length,...(inspectionResult.log||L));}Disc.push(...p.godZone);p.godZone=[];p.godName=null;p.godLevel=0;L.push(`${p.name} 被邪神抛弃，SAN-1`);}});
     const win=checkWin(P,gs._isMP);
     // Upgrade does not consume the worship slot; worship/convert does
-    setGs({...gs,players:P,discard:Disc,log:L,...(!isUpgrade?{godFromHandUsed:true}:{}),...(win?{gameOver:win}:{})});
+    setGs({...gs,players:P,discard:Disc,log:L,...inspectionMeta,...(!isUpgrade?{godFromHandUsed:true}:{}),...(win?{gameOver:win}:{})});
   }
 
   function handleMyCardClick(idx){
