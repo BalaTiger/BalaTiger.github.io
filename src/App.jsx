@@ -5938,6 +5938,27 @@ export default function Game(){
   const[gs,setGs]=useState(null);
   const[modal,setModal]=useState(null); // 'about' | 'roadmap' | null
   const [serverAnnouncement, setServerAnnouncement] = useState(null);
+  useEffect(()=>{
+    if(typeof window==='undefined') return undefined;
+    const announcementUrl = `${SERVER_URL.replace(/\/$/,'')}/api/announcement`;
+    let cancelled = false;
+    async function syncAnnouncement(){
+      try{
+        const res = await fetch(announcementUrl,{cache:'no-store'});
+        if(!res.ok) return;
+        const data = await res.json();
+        if(!cancelled) setServerAnnouncement(data?.announcement||null);
+      }catch(_err){
+        // 静默失败：轮询只做联机公告兜底，不影响单机游玩
+      }
+    }
+    syncAnnouncement();
+    const intervalId = setInterval(syncAnnouncement,15000);
+    return ()=>{
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  },[SERVER_URL]);
   // ── Audio Preloading ──────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -6288,6 +6309,9 @@ export default function Game(){
       setPlayerUsernameSpecial(!!isSpecialName);
       setRenameInput(username);
     });
+    socket.on('randomUsernameResult',({username})=>{
+      setRenameInput(username);
+    });
     socket.on('renameError',({msg})=>{
       addToast(msg);
     });
@@ -6507,9 +6531,7 @@ export default function Game(){
     });
     // 监听服务器广播信息
     socket.on('serverAnnouncement',({ announcement })=>{
-      if(announcement){
-        setServerAnnouncement(announcement);
-      }
+      setServerAnnouncement(announcement||null);
     });
     // aiTakeover：被 AI 接管（断线超时），显示断线遮罩
     socket.on('aiTakeover',({reason})=>{
@@ -6660,9 +6682,8 @@ export default function Game(){
   }
 
   function handleRandomUsername(){
-    if(renameCdActive||!socketRef.current)return;
+    if(!socketRef.current)return;
     socketRef.current.emit('randomUsername',{uuid:playerUUID});
-    startRenameCooldown();
   }
 
   function closeRoomModal(){
@@ -8206,14 +8227,13 @@ export default function Game(){
                       />
                       <button
                         onClick={handleRandomUsername}
-                        disabled={renameCdActive}
                         title='随机用户名'
                         style={{
                           position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',
                           width:22,height:22,display:'flex',alignItems:'center',justifyContent:'center',
                           background:'none',border:'none',padding:0,
-                          color:renameCdActive?'#5a4070':'#cda85a',fontSize:14,
-                          cursor:renameCdActive?'not-allowed':'pointer',lineHeight:1,
+                          color:'#cda85a',fontSize:14,
+                          cursor:'pointer',lineHeight:1,
                         }}
                       >
                         🎲
