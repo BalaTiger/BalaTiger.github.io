@@ -6150,6 +6150,7 @@ export default function Game(){
   // 联机选项界面状态
   const [onlineOptionsModal,setOnlineOptionsModal]=useState(false);
   const [playerUsername,setPlayerUsername]=useState('');
+  const [playerUsernameSpecial,setPlayerUsernameSpecial]=useState(false);
   const [renameInput,setRenameInput]=useState('');
   const [renameCdActive,setRenameCdActive]=useState(false);
   const [renameInputVisible,setRenameInputVisible]=useState(false);
@@ -6272,8 +6273,9 @@ export default function Game(){
       safeLS.set('cthulhu_player_uuid',uuid);
     });
     // userInfo：打开联机选项界面时后端下发，含异常断线标志
-    socket.on('userInfo',({uuid,username,wasForceReset})=>{
+    socket.on('userInfo',({uuid,username,isSpecialName,wasForceReset})=>{
       setPlayerUsername(username);
+      setPlayerUsernameSpecial(!!isSpecialName);
       setRenameInput(username);
       cleanup();
       setMultiLoading(false);
@@ -6281,8 +6283,9 @@ export default function Game(){
         addToast('您上次在游戏房间强制下线，已退出房间');
       }
     });
-    socket.on('renameSuccess',({username})=>{
+    socket.on('renameSuccess',({username,isSpecialName})=>{
       setPlayerUsername(username);
+      setPlayerUsernameSpecial(!!isSpecialName);
       setRenameInput(username);
     });
     socket.on('renameError',({msg})=>{
@@ -6641,15 +6644,25 @@ export default function Game(){
     setShowPrivacyToggleConfirm(false);
   }
 
-  // 点击"修改"用户名
-  function handleRename(){
-    if(renameCdActive||!socketRef.current)return;
-    socketRef.current.emit('renameUser',{uuid:playerUUID,newName:renameInput});
+  function startRenameCooldown(){
     setRenameCdActive(true);
     renameCdTimerRef.current=setTimeout(()=>{
       setRenameCdActive(false);
       renameCdTimerRef.current=null;
     },5000);
+  }
+
+  // 点击"修改"用户名
+  function handleRename(){
+    if(renameCdActive||!socketRef.current)return;
+    socketRef.current.emit('renameUser',{uuid:playerUUID,newName:renameInput});
+    startRenameCooldown();
+  }
+
+  function handleRandomUsername(){
+    if(renameCdActive||!socketRef.current)return;
+    socketRef.current.emit('randomUsername',{uuid:playerUUID});
+    startRenameCooldown();
   }
 
   function closeRoomModal(){
@@ -8178,18 +8191,34 @@ export default function Game(){
                 <div style={{fontFamily:"'Cinzel',serif",color:'#6a5080',fontSize:9,letterSpacing:2,textTransform:'uppercase'}}>— 你的联机用户名 —</div>
                 {renameInputVisible?(
                   <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                    <input
-                      autoFocus
-                      value={renameInput}
-                      onChange={e=>setRenameInput(e.target.value)}
-                      onKeyDown={e=>{if(e.key==='Enter'){handleRename();setRenameInputVisible(false);}else if(e.key==='Escape')setRenameInputVisible(false);}}
-                      maxLength={10}
-                      style={{
-                        flex:1,background:'#160d22',border:'1px solid #5a3a80',borderRadius:3,
-                        color:'#e0c0f8',fontFamily:"'Cinzel',serif",fontSize:13,
-                        padding:'6px 10px',outline:'none',letterSpacing:1,
-                      }}
-                    />
+                    <div style={{position:'relative',flex:1,display:'flex',alignItems:'center'}}>
+                      <input
+                        autoFocus
+                        value={renameInput}
+                        onChange={e=>setRenameInput(e.target.value)}
+                        onKeyDown={e=>{if(e.key==='Enter'){handleRename();setRenameInputVisible(false);}else if(e.key==='Escape')setRenameInputVisible(false);}}
+                        maxLength={10}
+                        style={{
+                          flex:1,background:'#160d22',border:'1px solid #5a3a80',borderRadius:3,
+                          color:'#e0c0f8',fontFamily:"'Cinzel',serif",fontSize:13,
+                          padding:'6px 34px 6px 10px',outline:'none',letterSpacing:1,
+                        }}
+                      />
+                      <button
+                        onClick={handleRandomUsername}
+                        disabled={renameCdActive}
+                        title='随机用户名'
+                        style={{
+                          position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',
+                          width:22,height:22,display:'flex',alignItems:'center',justifyContent:'center',
+                          background:'none',border:'none',padding:0,
+                          color:renameCdActive?'#5a4070':'#cda85a',fontSize:14,
+                          cursor:renameCdActive?'not-allowed':'pointer',lineHeight:1,
+                        }}
+                      >
+                        🎲
+                      </button>
+                    </div>
                     <button onClick={()=>{handleRename();setRenameInputVisible(false);}} disabled={renameCdActive} style={{
                       padding:'6px 12px',background:renameCdActive?'#1e1430':'#2e1450',
                       border:'1px solid '+(renameCdActive?'#3a2560':'#7a50b0'),
@@ -8200,7 +8229,7 @@ export default function Game(){
                   </div>
                 ):(
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontFamily:"'Cinzel',serif",fontSize:14,color:'#e0c0f8',letterSpacing:1,flex:1}}>{playerUsername||'—'}</span>
+                    <span style={{fontFamily:"'Cinzel',serif",fontSize:14,color:playerUsernameSpecial?'#d8b35c':'#e0c0f8',letterSpacing:1,flex:1,textShadow:playerUsernameSpecial?'0 0 10px rgba(216,179,92,.22)':'none'}}>{playerUsername||'—'}</span>
                     <button onClick={()=>{setRenameInput(playerUsername);setRenameInputVisible(true);}} style={{
                       padding:'4px 10px',background:'none',
                       border:'1px solid #5a3a80',borderRadius:3,
@@ -8291,7 +8320,7 @@ export default function Game(){
                 {roomModal.players.map((p)=>(
                   <div key={p.uuid} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',marginBottom:6,background:'#1a1028',border:`1px solid ${p.ready?'#3a6a3a':'#3a2560'}`,borderRadius:3,transition:'border-color .3s'}}>
                     <span style={{fontSize:12}}>{p.ready?'✅':'⬜'}</span>
-                    <span style={{fontFamily:"'Cinzel',serif",fontSize:13,color:p.ready?'#90d090':'#c8a0e8',letterSpacing:0.5}}>{p.username}</span>
+                    <span style={{fontFamily:"'Cinzel',serif",fontSize:13,color:p.isSpecialName?'#d8b35c':(p.ready?'#90d090':'#c8a0e8'),letterSpacing:0.5,textShadow:p.isSpecialName?'0 0 10px rgba(216,179,92,.22)':'none'}}>{p.username}</span>
                     {p.uuid===playerUUID&&<span style={{marginLeft:'auto',color:'#7060a0',fontSize:9,fontStyle:'italic'}}>（你）</span>}
                     {p.isAI&&<span style={{marginLeft:'auto',color:'#a060a0',fontSize:9,fontStyle:'italic'}}>[AI]</span>}
                   </div>
