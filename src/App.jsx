@@ -1540,36 +1540,92 @@ function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor
 //  WIN CHECK
 // ══════════════════════════════════════════════════════════════
 // ── Multiplayer rotation helpers ─────────────────────────────────
+// Multiplayer rotation contract:
+// - Only player-seat indices rotate.
+// - Card indexes / hand indexes / counts (e.g. sourceCardIndex, pickIndex) never rotate.
+// - When adding a new abilityData source/target seat field, update the tables below.
+// Current rotated groups:
+//   top-level: currentTurn, huntAbandoned
+//   gameOver: winnerIdx, winnerIdx2
+//   drawReveal: drawerIdx
+//   abilityData single seats: drawerIdx, swapTi, huntTi, huntingAI, peekHandSource,
+//     caveDuelSource, caveDuelTarget, damageLinkSource, roseThornSource, pickSource
+//   abilityData seat arrays: peekHandTargets, caveDuelTargets, damageLinkTargets,
+//     roseThornTargets, pickOrder
+const ROTATE_GS_TOP_LEVEL_INDEX_FIELDS=['currentTurn'];
+const ROTATE_GS_TOP_LEVEL_INDEX_ARRAY_FIELDS=['huntAbandoned'];
+const ROTATE_GAME_OVER_INDEX_FIELDS=['winnerIdx','winnerIdx2'];
+const ROTATE_DRAW_REVEAL_INDEX_FIELDS=['drawerIdx'];
+const ROTATE_ABILITYDATA_INDEX_FIELDS=[
+  'drawerIdx',
+  'swapTi',
+  'huntTi',
+  'huntingAI',
+  'peekHandSource',
+  'caveDuelSource',
+  'caveDuelTarget',
+  'damageLinkSource',
+  'roseThornSource',
+  'pickSource',
+];
+const ROTATE_ABILITYDATA_INDEX_ARRAY_FIELDS=[
+  'peekHandTargets',
+  'caveDuelTargets',
+  'damageLinkTargets',
+  'roseThornTargets',
+  'pickOrder',
+];
+function rotateIndexedFields(obj,fields,rotateIndex){
+  if(!obj)return obj;
+  let changed=false;
+  const next={...obj};
+  fields.forEach(field=>{
+    if(next[field]!=null){
+      next[field]=rotateIndex(next[field]);
+      changed=true;
+    }
+  });
+  return changed?next:obj;
+}
+function rotateIndexedArrayFields(obj,fields,rotateIndex){
+  if(!obj)return obj;
+  let changed=false;
+  const next={...obj};
+  fields.forEach(field=>{
+    if(Array.isArray(next[field])){
+      next[field]=next[field].map(rotateIndex);
+      changed=true;
+    }
+  });
+  return changed?next:obj;
+}
+function rotateAbilityDataForViewer(abilityData,rotateIndex){
+  if(!abilityData)return abilityData;
+  const rotatedIndices=rotateIndexedFields(abilityData,ROTATE_ABILITYDATA_INDEX_FIELDS,rotateIndex);
+  return rotateIndexedArrayFields(rotatedIndices,ROTATE_ABILITYDATA_INDEX_ARRAY_FIELDS,rotateIndex);
+}
+function rotateTopLevelGsFieldsForViewer(gs,rotateIndex){
+  if(!gs)return gs;
+  const rotatedIndices=rotateIndexedFields(gs,ROTATE_GS_TOP_LEVEL_INDEX_FIELDS,rotateIndex);
+  return rotateIndexedArrayFields(rotatedIndices,ROTATE_GS_TOP_LEVEL_INDEX_ARRAY_FIELDS,rotateIndex);
+}
+function rotateGameOverForViewer(gameOver,rotateIndex){
+  return rotateIndexedFields(gameOver,ROTATE_GAME_OVER_INDEX_FIELDS,rotateIndex);
+}
+function rotateDrawRevealForViewer(drawReveal,rotateIndex){
+  return rotateIndexedFields(drawReveal,ROTATE_DRAW_REVEAL_INDEX_FIELDS,rotateIndex);
+}
 // Rotate gs so that the player at canonical index myIndex appears at players[0]
 function rotateGsForViewer(gs,myIndex){
   if(!gs||myIndex===0)return gs;
   const N=gs.players.length;
   const ri=i=>(i<0?i:(i-myIndex+N)%N);
-  const rotateMaybeArray=arr=>Array.isArray(arr)?arr.map(ri):arr;
   const players=[...gs.players.slice(myIndex),...gs.players.slice(0,myIndex)];
-  const currentTurn=ri(gs.currentTurn);
-  const gameOver=gs.gameOver&&gs.gameOver.winnerIdx!=null
-    ?{...gs.gameOver,winnerIdx:ri(gs.gameOver.winnerIdx)}:gs.gameOver;
-  const huntAbandoned=(gs.huntAbandoned||[]).map(i=>ri(i));
-  const drawReveal=gs.drawReveal?{...gs.drawReveal,...(gs.drawReveal.drawerIdx!=null?{drawerIdx:ri(gs.drawReveal.drawerIdx)}:{})}:gs.drawReveal;
-  const ad=gs.abilityData||{};
-  const abilityData={...ad,
-    ...(ad.drawerIdx!=null?{drawerIdx:ri(ad.drawerIdx)}:{}),
-    ...(ad.swapTi!=null?{swapTi:ri(ad.swapTi)}:{}),
-    ...(ad.huntTi!=null?{huntTi:ri(ad.huntTi)}:{}),
-    ...(ad.huntingAI!=null?{huntingAI:ri(ad.huntingAI)}:{}),
-    ...(ad.peekHandSource!=null?{peekHandSource:ri(ad.peekHandSource)}:{}),
-    ...(ad.caveDuelSource!=null?{caveDuelSource:ri(ad.caveDuelSource)}:{}),
-    ...(ad.damageLinkSource!=null?{damageLinkSource:ri(ad.damageLinkSource)}:{}),
-    ...(ad.peekHandTargets!=null?{peekHandTargets:rotateMaybeArray(ad.peekHandTargets)}:{}),
-    ...(ad.caveDuelTargets!=null?{caveDuelTargets:rotateMaybeArray(ad.caveDuelTargets)}:{}),
-    ...(ad.damageLinkTargets!=null?{damageLinkTargets:rotateMaybeArray(ad.damageLinkTargets)}:{}),
-    ...(ad.roseThornTargets!=null?{roseThornTargets:rotateMaybeArray(ad.roseThornTargets)}:{}),
-    ...(ad.roseThornSource!=null?{roseThornSource:ri(ad.roseThornSource)}:{}),
-    ...(ad.pickOrder!=null?{pickOrder:rotateMaybeArray(ad.pickOrder)}:{}),
-    ...(ad.pickSource!=null?{pickSource:ri(ad.pickSource)}:{}),
-  };
-  return{...gs,players,currentTurn,gameOver,huntAbandoned,abilityData,drawReveal};
+  const rotatedTopLevel=rotateTopLevelGsFieldsForViewer(gs,ri);
+  const gameOver=rotateGameOverForViewer(gs.gameOver,ri);
+  const drawReveal=rotateDrawRevealForViewer(gs.drawReveal,ri);
+  const abilityData=rotateAbilityDataForViewer(gs.abilityData||{},ri);
+  return{...rotatedTopLevel,players,gameOver,abilityData,drawReveal};
 }
 function derotateGs(gs,myIndex){
   if(!gs||myIndex===0)return gs;
@@ -1649,6 +1705,9 @@ function isLocalTreasureDodgePhase(gs){
 }
 function isLocalTreasureAoEDodgePhase(gs){
   return gs?.phase==='TREASURE_AOE_DODGE_DECISION'&&isLocalCurrentTurn(gs);
+}
+function isLocalWinnerSeat(gameOver){
+  return isLocalSeatIndex(gameOver?.winnerIdx)||isLocalSeatIndex(gameOver?.winnerIdx2);
 }
 
 function checkWin(players,isMP){
@@ -3190,6 +3249,24 @@ function isTurnStartLog(line){
 function isStatLog(line){
   return /受 \d+HP 伤害|失去 \d+ HP|失去 \d+ SAN|失去 \d+ HP 和 \d+ SAN|回复 \d+ HP|回复 \d+ SAN|各失去|各回复|额外失去|被乱抓|自残|恢复 1SAN/.test(line||'');
 }
+function isSkillHuntLog(line){
+  return /【追捕】|发动【追捕】|（追猎者）追捕|向你发动【追捕】|放弃追捕|停止了追捕|尝试了所有目标，仍无法追捕/.test(line||'');
+}
+function isSkillSwapLog(line){
+  return /【掉包】/.test(line||'');
+}
+function isSkillBewitchLog(line){
+  return /【蛊惑】/.test(line||'');
+}
+function isDiscardOnlyLog(line){
+  return /评估后选择弃置|（上限）|随机弃|弃置了 \[/.test(line||'')&&!/受 \d+HP 伤害|失去 \d+ HP|失去 \d+ SAN|失去 \d+ HP 和 \d+ SAN/.test(line||'');
+}
+function isTransferLog(line){
+  return /交换了全部手牌|暗抽了\d+张牌|暗抽了一张|拿走 \[|还给 |选择了 \[.+\]|收入了 \d+ 张编号为/.test(line||'');
+}
+function isDrawLikeLog(line){
+  return /摸到 \[|收入了 \[|遭遇邪神|将邪神牌收入手牌|信仰了 |展示了牌堆顶|这是带有负面效果的区域牌|掷出 \d+ 点|准备偷看|准备使用两人一绳|准备进行穴居人战争/.test(line||'');
+}
 
 function splitAnimBoundLogs(lines){
   const normalized=(Array.isArray(lines)?lines:[]).filter(line=>typeof line==='string'&&line.length);
@@ -3244,7 +3321,7 @@ function withClearedTurnAnimFields(state,extra={}){
 }
 function buildPlayerTurnDrawQueue(oldGs,newGs,seedQueue=[]){
   const queue=[...(Array.isArray(seedQueue)?seedQueue:[])];
-  if(newGs?.currentTurn===0&&newGs.drawReveal?.card){
+  if(isLocalCurrentTurn(newGs)&&newGs.drawReveal?.card){
     queue.push(
       {type:'YOUR_TURN',msgs:newGs._turnStartLogs},
       {type:'DRAW_CARD',card:newGs.drawReveal.card,triggerName:'你',targetPid:0,msgs:newGs._drawLogs}
@@ -3283,16 +3360,26 @@ function appendAnimLogChunkToQueueEnd(queue,lines){
   bound[lastIdx].msgs=[...(Array.isArray(bound[lastIdx].msgs)?bound[lastIdx].msgs:[]),...normalized];
   return bound;
 }
+function hasExplicitAnimMsgs(step){
+  return Array.isArray(step?.msgs)&&step.msgs.some(line=>typeof line==='string'&&line.length);
+}
+function hasExplicitTurnFlowLogs(nextGs){
+  return !!(
+    (Array.isArray(nextGs?._turnStartLogs)&&nextGs._turnStartLogs.length) ||
+    (Array.isArray(nextGs?._drawLogs)&&nextGs._drawLogs.length) ||
+    (Array.isArray(nextGs?._statLogs)&&nextGs._statLogs.length)
+  );
+}
 
 function extractSkillLogs(lines,kind){
   const normalized=(Array.isArray(lines)?lines:[]).filter(line=>typeof line==='string'&&line.length);
   switch(kind){
     case 'swap':
-      return normalized.filter(line=>/【掉包】/.test(line));
+      return normalized.filter(isSkillSwapLog);
     case 'bewitch':
-      return normalized.filter(line=>/【蛊惑】/.test(line));
+      return normalized.filter(isSkillBewitchLog);
     case 'hunt':
-      return normalized.filter(line=>/【追捕】|发动【追捕】|（追猎者）追捕|向你发动【追捕】|放弃追捕|停止了追捕|尝试了所有目标，仍无法追捕/.test(line));
+      return normalized.filter(isSkillHuntLog);
     default:
       return [];
   }
@@ -6990,7 +7077,7 @@ export default function Game(){
       setLobbyLoading(false);
       setLobbyRooms(rooms||[]);
     });
-    // gameStart：多人游戏开始，只有房主（排位0）初始化并广播 gs
+    // gameStart：多人游戏开始，只有本地视角中的房主 seat 初始化并广播 raw gs
     socket.on('gameStart',({roomId,players})=>{
       const myIdx=players.findIndex(p=>p.uuid===playerUUIDRef.current);
       const safeIdx=myIdx<0?0:myIdx;
@@ -7003,7 +7090,7 @@ export default function Game(){
       addToast('多人游戏开始！');
       mpRoleRevealedRef.current=false; // 每局重置角色揭示标志
       gameEndSentRef.current=false;       // 每局重置 gameEnd 发送标志
-      if(safeIdx===0){
+      if(isLocalSeatIndex(safeIdx)){
         // 房主：初始化游戏并广播给所有人
         const names=players.map(p=>p.username);
         const rawGs=initGame(names);
@@ -7028,7 +7115,8 @@ export default function Game(){
       }
       // 非房主等待接收 mpStateSync
     });
-    // mpStateSync：收到房主广播的最新 gs（规范顺序），旋转到自己视角后应用
+    // mpStateSync：收到房主广播的 raw gs 后，必须先 rotate 到本地视角，
+    // 后续所有“本地玩家 / 当前行动者 / 当前响应者”判断都应基于 rotated + helper。
     socket.on('mpStateSync',({gs:rawGs})=>{
       if(!rawGs)return;
       const myIdx=myPlayerIndexRef.current;
@@ -7066,7 +7154,7 @@ export default function Game(){
           const rollerName=diceMatch[1];
           const d1=parseInt(diceMatch[2],10);
           const dodgeSuccess=d1>=4;
-          const isSelf=rollerName==='你'||rollerName===rotated.players[0]?.name;
+          const isSelf=rollerName==='你'||rollerName===localDisplayName(0,rotated.players[0]?.name);
           // 用遮蔽态先渲染
           setGs({...rotated,phase:'ACTION',drawReveal:null,abilityData:{}});
           receivedGsRef.current=true;
@@ -7804,6 +7892,7 @@ export default function Game(){
     if(!Array.isArray(queue)||!queue.length)return queue||[];
     const nextLog=Array.isArray(nextGs?.log)?nextGs.log:[];
     const baseLog=Array.isArray(visibleLogRef.current)?visibleLogRef.current:[];
+    const explicitTurnFlow=hasExplicitTurnFlowLogs(nextGs);
     let prefix=0;
     while(prefix<baseLog.length&&prefix<nextLog.length&&baseLog[prefix]===nextLog[prefix])prefix++;
     let remaining=nextLog.slice(prefix);
@@ -7827,48 +7916,48 @@ export default function Game(){
       });
       return taken;
     };
-    const isTurnStart=line=>/^── .+ 的回合开始 ──$/.test(line||'');
-    const isSkillHunt=line=>/【追捕】|发动【追捕】|停止了追捕|放弃追捕|尝试了所有目标，仍无法追捕/.test(line||'');
-    const isSkillSwap=line=>/【掉包】/.test(line||'');
-    const isSkillBewitch=line=>/【蛊惑】/.test(line||'');
-    const isDiscardOnly=line=>/评估后选择弃置|（上限）|随机弃|弃置了 \[/.test(line||'')&&!/受 \d+HP 伤害|失去 \d+ HP|失去 \d+ SAN|失去 \d+ HP 和 \d+ SAN/.test(line||'');
-    const isStatLine=line=>/受 \d+HP 伤害|失去 \d+ HP|失去 \d+ SAN|失去 \d+ HP 和 \d+ SAN|回复 \d+ HP|回复 \d+ SAN|各失去|各回复|额外失去|被乱抓|自残|恢复 1SAN/.test(line||'');
-    const isTransferLine=line=>/交换了全部手牌|暗抽了\d+张牌|暗抽了一张|拿走 \[|还给 |选择了 \[.+\]|收入了 \d+ 张编号为/.test(line||'');
-    const isDrawLikeLine=line=>/摸到 \[|收入了 \[|遭遇邪神|将邪神牌收入手牌|信仰了 |展示了牌堆顶|这是带有负面效果的区域牌|掷出 \d+ 点|准备偷看|准备使用两人一绳|准备进行穴居人战争/.test(line||'');
     return queue.map(item=>{
       const step={...item};
       if(Array.isArray(step._logChunk))return step;
       let chunk=consumeExplicit(step.msgs);
+      if(hasExplicitAnimMsgs(step)){
+        step._logChunk=chunk;
+        return step;
+      }
+      if(explicitTurnFlow&&['YOUR_TURN','DRAW_CARD','HP_DAMAGE','SAN_DAMAGE','HP_HEAL','SAN_HEAL','HP_SAN_HEAL','GUILLOTINE','DEATH'].includes(step.type)){
+        step._logChunk=chunk;
+        return step;
+      }
       if(!chunk.length){
         switch(step.type){
           case 'YOUR_TURN':
-            chunk=takeMatchingLogs(remaining,line=>isTurnStart(line),1);
+            chunk=takeMatchingLogs(remaining,isTurnStartLog,1);
             break;
           case 'DRAW_CARD':
-            chunk=takeMatchingLogs(remaining,line=>isDrawLikeLine(line),8);
-            if(!chunk.length)chunk=takeMatchingLogs(remaining,line=>!isTurnStart(line)&&!isSkillHunt(line)&&!isSkillSwap(line)&&!isSkillBewitch(line)&&!isStatLine(line),4);
+            chunk=takeMatchingLogs(remaining,isDrawLikeLog,8);
+            if(!chunk.length)chunk=takeMatchingLogs(remaining,line=>!isTurnStartLog(line)&&!isSkillHuntLog(line)&&!isSkillSwapLog(line)&&!isSkillBewitchLog(line)&&!isStatLog(line),4);
             break;
           case 'SKILL_HUNT':
-            chunk=takeMatchingLogs(remaining,line=>isSkillHunt(line),1);
+            chunk=takeMatchingLogs(remaining,isSkillHuntLog,1);
             break;
           case 'SKILL_SWAP':
-            chunk=takeMatchingLogs(remaining,line=>isSkillSwap(line),1);
+            chunk=takeMatchingLogs(remaining,isSkillSwapLog,1);
             break;
           case 'SKILL_BEWITCH':
-            chunk=takeMatchingLogs(remaining,line=>isSkillBewitch(line),1);
+            chunk=takeMatchingLogs(remaining,isSkillBewitchLog,1);
             break;
           case 'DISCARD':
-            chunk=takeMatchingLogs(remaining,line=>isDiscardOnly(line),1);
+            chunk=takeMatchingLogs(remaining,isDiscardOnlyLog,1);
             break;
           case 'CARD_TRANSFER':
-            chunk=takeMatchingLogs(remaining,line=>isTransferLine(line),1);
+            chunk=takeMatchingLogs(remaining,isTransferLog,1);
             break;
           case 'HP_DAMAGE':
           case 'SAN_DAMAGE':
           case 'HP_HEAL':
           case 'SAN_HEAL':
           case 'GUILLOTINE':
-            chunk=takeMatchingLogs(remaining,line=>isStatLine(line),12);
+            chunk=takeMatchingLogs(remaining,isStatLog,12);
             break;
           default:
             break;
@@ -8718,7 +8807,7 @@ function buildInspectionEventFlow(baseGs,events){
     if(base.phase==='DRAW_REVEAL'&&base.drawReveal?.needsDecision&&base.drawReveal?.fromRest){
       const dr=base.drawReveal;
       const drawerIdx=dr.drawerIdx??0;
-      const who=drawerIdx===0?'你':(dr.drawerName||base.players[drawerIdx]?.name||'该角色');
+      const who=localDisplayName(drawerIdx,(dr.drawerName||base.players[drawerIdx]?.name||'该角色'));
       const newGs={...base,
         discard:[...base.discard,dr.card],
         log:[...base.log,`(超时) ${who} 弃置了 ${cardLogText(dr.card,{alwaysShowName:true})}`],
@@ -9490,7 +9579,7 @@ function buildInspectionEventFlow(baseGs,events){
     const{winner,reason,winnerIdx}=gs.gameOver;
     const myRole=gs.players[0].role;
     const iWon=winner==='LOSE'||winner==='LOSE_ALL'?false
-      :winner===ROLE_TREASURE?(winnerIdx===0||(gs.gameOver.winnerIdx2??-1)===0)
+      :winner===ROLE_TREASURE?isLocalWinnerSeat(gs.gameOver)
       :(winner===myRole);
     const isLose=winner==='LOSE'||winner==='LOSE_ALL';
 
@@ -10065,7 +10154,7 @@ function buildInspectionEventFlow(baseGs,events){
     let L;
     if(gs._isMP){
       // 联机对战：显示通用日志，不包含具体卡牌信息
-      const sourceName=peekHandSource===0?gs.players[0].name:(gs.players[peekHandSource]?.name||'某人');
+      const sourceName=isLocalSeatIndex(peekHandSource)?gs.players[0].name:(gs.players[peekHandSource]?.name||'某人');
       L=[...gs.log,`${sourceName} 偷看了 ${targetPlayer.name} 的一张手牌`];
     }else{
       // 单机游戏：显示具体卡牌信息
@@ -10077,7 +10166,7 @@ function buildInspectionEventFlow(baseGs,events){
       ...(gs.abilityData?.fromRest?{fromRest:true}:{}),
       ...(gs.abilityData?.cthDrawsRemaining!=null?{cthDrawsRemaining:gs.abilityData.cthDrawsRemaining}:{}),
     }};
-    if(peekHandSource===0){
+    if(isLocalSeatIndex(peekHandSource)){
       setPrivatePeek({card:peekedCard,targetName:targetPlayer.name});
     }
     if(gs.abilityData?.fromRest){_cthContinueRestDraws(nextGs);return;}
@@ -10097,7 +10186,7 @@ function buildInspectionEventFlow(baseGs,events){
     
     // 源角色选择牌（AI选择数字编号最大的牌）
     let sourceCardIndex, sourceCard;
-    if(caveDuelSource===0){
+    if(isLocalSeatIndex(caveDuelSource)){
       // 玩家作为源角色，需要选择牌
       setGs({...gs,phase:'CAVE_DUEL_SELECT_CARD',abilityData:{...gs.abilityData,caveDuelTarget:ti}});
       return;
@@ -10196,12 +10285,12 @@ function buildInspectionEventFlow(baseGs,events){
     const sourcePlayer=P[caveDuelSource];
     const targetPlayer=P[caveDuelTarget];
     
-    if(caveDuelSource===0){
+    if(isLocalSeatIndex(caveDuelSource)){
       // 玩家作为源角色
       const playerCard=sourcePlayer.hand[cardIndex];
       // 目标角色选择牌
       let targetCardIndex, targetCard;
-      if(caveDuelTarget===0){
+      if(isLocalSeatIndex(caveDuelTarget)){
         // 双方都是玩家，不可能的情况
         return;
       }else{
