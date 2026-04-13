@@ -94,6 +94,9 @@ const buildPublicUrl=path=>{
   return `${base}${String(path).replace(/^\/+/,'')}`;
 };
 const LOCAL_DEBUG_KEY='cthulhu_local_debug_mode';
+const DEBUG_FORCE_CARD_KEY='cthulhu_debug_force_card';
+const DEBUG_FORCE_CARD_TARGET_KEY='cthulhu_debug_force_card_target';
+const ZONE_CARD_KEYS = LETTERS.flatMap(L => NUMS.map(N => `${L}${N}`));
 const isLocalTestHost=()=>{
   if(typeof window==='undefined')return false;
   const host=(window.location.hostname||'').toLowerCase();
@@ -1868,19 +1871,27 @@ function startNextTurn(gs){
   turnStartLogs=[`── ${P[next].name} 的回合开始 ──`];
   L.push(...turnStartLogs);
   if(next===0){
+    // Debug: 强制摸牌 - 玩家
+    if(gs.debugForceCard && gs.debugForceCardTarget === 'player'){
+      // 将指定的牌放在牌堆顶部
+      D.unshift(gs.debugForceCard);
+      // 清除debug设置，避免后续回合再次触发
+      gs.debugForceCard = null;
+      gs.debugForceCardTarget = null;
+    }
     // NYA power: borrow dead role before drawing
     if(P[0].godName==='NYA'&&P[0].godLevel>=1){
       const deadOthers=P.filter((p,i)=>i>0&&p.isDead);
       if(deadOthers.length>0){
-        return{...gs,players:P,deck:D,discard:Disc,log:[...L,'你的邪神之力「千人千貌」：可借用已死角色的身份'],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'NYA_BORROW',abilityData:{},drawReveal:null,selectedCard:null,globalOnlySwapOwner};
+        return{...gs,players:P,deck:D,discard:Disc,log:[...L,'你的邪神之力「千人千貌」：可借用已死角色的身份'],currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'NYA_BORROW',abilityData:{},drawReveal:null,selectedCard:null,globalOnlySwapOwner,debugForceCard:null,debugForceCardTarget:null};
       }
     }
     // 检查是否需要跳过摸牌
     if(P[0].skipNextDraw){
       delete P[0].skipNextDraw;
       L.push('你因扭伤而无法摸牌');
-      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,turn:newTurn};
-      return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'ACTION',drawReveal:null,selectedCard:null,abilityData:{},globalOnlySwapOwner,turn:newTurn};
+      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,turn:newTurn,debugForceCard:null,debugForceCardTarget:null};
+      return{...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:0,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,phase:'ACTION',drawReveal:null,selectedCard:null,abilityData:{},globalOnlySwapOwner,turn:newTurn,debugForceCard:null,debugForceCardTarget:null};
     }
     const _P_beforeDraw=copyPlayers(P);
     const res=playerDrawCard(P,D,Disc,0,gs);
@@ -1990,8 +2001,16 @@ function startNextTurn(gs){
     if(P[next].skipNextDraw){
       delete P[next].skipNextDraw;
       L.push(`${P[next].name} 因扭伤而无法摸牌`);
-      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-      return startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner});
+      const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win,debugForceCard:null,debugForceCardTarget:null};
+      return startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:next,skillUsed:false,restUsed:false,godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner,debugForceCard:null,debugForceCardTarget:null});
+    }
+    // Debug: 强制摸牌 - AI1
+    if(gs.debugForceCard && gs.debugForceCardTarget === 'ai1' && next === 1){ // 假设第一名AI的索引是1
+      // 将指定的牌放在牌堆顶部
+      D.unshift(gs.debugForceCard);
+      // 清除debug设置，避免后续回合再次触发
+      gs.debugForceCard = null;
+      gs.debugForceCardTarget = null;
     }
     const _P_beforeDraw=copyPlayers(P);
     const res=aiDrawAndApply(next,P,D,Disc,gs);
@@ -2691,11 +2710,34 @@ const INSPECTION_DECK = [
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
-function initGame(playerNames){
+function initGame(playerNames, debugForceCard, debugForceCardTarget, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey){
   const names=playerNames||['你',...AI_NAMES];
   const N=names.length;
   const isSinglePlayer = !playerNames;
-  const deck=mkDeck(),roles=mkRoles(N, isSinglePlayer);
+  let deck=mkDeck();
+  
+  // Debug: 强制摸牌
+  let targetCard = null;
+  if((debugForceCard || (debugForceCardType && (debugForceZoneCardKey || debugForceGodCardKey))) && (debugForceCardTarget === 'player' || debugForceCardTarget === 'ai1')){
+    
+    if(debugForceCardType === 'zone' && debugForceZoneCardKey && debugForceZoneCardFace){
+      // 查找指定编号和牌面的区域牌
+      targetCard = deck.find(card => card.key === debugForceZoneCardKey && card.face === debugForceZoneCardFace);
+    } else if(debugForceCardType === 'god' && debugForceGodCardKey){
+      // 查找指定类型的神牌
+      targetCard = deck.find(card => card.isGod && card.godKey === debugForceGodCardKey);
+    } else if(debugForceCard){
+      // 兼容旧的设置方式
+      targetCard = deck.find(card => card.key === debugForceCard);
+    }
+    
+    if(targetCard){
+      // 从牌堆中移除目标牌，暂时保留
+      deck = deck.filter(card => !(card.key === targetCard.key && card.face === targetCard.face && card.isGod === targetCard.isGod && card.godKey === targetCard.godKey));
+    }
+  }
+  
+  const roles=mkRoles(N, isSinglePlayer);
   const players=names.map((name,i)=>({
     id:i,
     name,
@@ -2719,9 +2761,12 @@ function initGame(playerNames){
     disableSkillNextTurn:false,
     handLimitDecreaseNextTurn:0
   }));
+  
+  // 发初始手牌
   for(let r=0;r<4;r++)players.forEach(p=>p.hand.push(deck.shift()));
+  
   const inspectionDeck=shuffle([...INSPECTION_DECK]);
-  const base={players,deck,discard:[],inspectionDeck,inspectionDiscard:[],currentTurn:-1,phase:'DRAW_REVEAL',drawReveal:null,selectedCard:null,abilityData:{},log:['游戏开始。每人获得四张初始手牌。'],gameOver:null,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner:null,_turnKey:0,_isMP:!!playerNames,turn:0,sealLooseningCount:0,houndsOfTindalosActive:false,houndsOfTindalosTarget:null,houndsOfTindalosElapsed:0};
+  const base={players,deck,discard:[],inspectionDeck,inspectionDiscard:[],currentTurn:-1,phase:'DRAW_REVEAL',drawReveal:null,selectedCard:null,abilityData:{},log:['游戏开始。每人获得四张初始手牌。'],gameOver:null,skillUsed:false,restUsed:false,huntAbandoned:[],godFromHandUsed:false,godTriggeredThisTurn:false,globalOnlySwapOwner:null,_turnKey:0,_isMP:!!playerNames,turn:0,sealLooseningCount:0,houndsOfTindalosActive:false,houndsOfTindalosTarget:null,houndsOfTindalosElapsed:0,debugForceCard:targetCard,debugForceCardTarget};
   return startNextTurn(base);
 }
 
@@ -6704,12 +6749,25 @@ export default function Game(){
   const [showFullLog,setShowFullLog]=useState(false);
   const [tutorialStep,setTutorialStep]=useState(1);
   const [localDebugMode,setLocalDebugMode]=useState(()=>isLocalTestMode&&safeLS.get(LOCAL_DEBUG_KEY)==='1');
+  const [debugForceCard,setDebugForceCard]=useState(()=>isLocalTestMode&&safeLS.get(DEBUG_FORCE_CARD_KEY)||null);
+  const [debugForceCardTarget,setDebugForceCardTarget]=useState(()=>isLocalTestMode&&safeLS.get(DEBUG_FORCE_CARD_TARGET_KEY)||'player');
+  const [debugForceCardType,setDebugForceCardType]=useState('zone');
+  const [debugForceZoneCardKey,setDebugForceZoneCardKey]=useState('A1');
+  const [debugForceZoneCardFace,setDebugForceZoneCardFace]=useState('front');
+  const [debugForceGodCardKey,setDebugForceGodCardKey]=useState('CTH');
+  const [showDebugSettings,setShowDebugSettings]=useState(false);
   const isBattleScreen=!!gs;
   const {noteUserGesture,playOpenSound,playCloseSound,playTickSound,playHpDamageSound}=useGameAudio(isBattleScreen);
   useEffect(()=>{
     if(!isLocalTestMode)return;
     safeLS.set(LOCAL_DEBUG_KEY,localDebugMode?'1':'0');
   },[isLocalTestMode,localDebugMode]);
+
+  useEffect(()=>{
+    if(!isLocalTestMode)return;
+    safeLS.set(DEBUG_FORCE_CARD_KEY,debugForceCard||'');
+    safeLS.set(DEBUG_FORCE_CARD_TARGET_KEY,debugForceCardTarget);
+  },[isLocalTestMode,debugForceCard,debugForceCardTarget]);
 
   function isCloseButtonText(text){
     const normalized=(text||'').replace(/\s+/g,'');
@@ -6961,7 +7019,7 @@ export default function Game(){
       if(isLocalSeatIndex(safeIdx)){
         // 房主：初始化游戏并广播给所有人
         const names=players.map(p=>p.username);
-        const rawGs=initGame(names);
+        const rawGs=initGame(names, debugForceCard, debugForceCardTarget, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey);
         animQueueRef.current=[];
         pendingGsRef.current=null;
         setAnimExiting(false);
@@ -8461,7 +8519,6 @@ function buildInspectionEventFlow(baseGs,events){
     ...((player?.godZone||[]).filter(card=>card?.roseThornHolderId===idx).map(card=>card.id)),
   ].filter(id=>id!=null);
   const roseThornPrevRef = useRef(null);
-  const roseThornKey = gs?.players?.map((p,i)=>`${i}:${getRoseThornMarkedIds(p,i).sort().join(',')}`).join('|');
   useEffect(()=>{
     if(!gs || showTutorial) return;
     const playerCount = gs.players?.length || 0;
@@ -9450,25 +9507,192 @@ function buildInspectionEventFlow(baseGs,events){
       {/* GammaSlider outside filtered lobby container */}
       <GammaSlider gamma={gamma} onChange={handleGamma}/>
       {isLocalTestMode&&(
-        <button
-          type="button"
-          onClick={()=>setLocalDebugMode(v=>!v)}
-          style={{
-            ...smallBtnStyle,
-            position:'fixed',
-            top:14,
-            left:14,
-            zIndex:120,
-            fontSize:11,
-            padding:'6px 10px',
-            background:localDebugMode?'#2a1608':'#140e08',
-            color:localDebugMode?'#f0cb7a':'#9b7641',
-            borderColor:localDebugMode?'#7a5324':'#3a2510',
-            boxShadow:localDebugMode?'0 0 14px #7a532455':'none',
-          }}
-        >
-          {localDebugMode?'Debug: 开':'Debug: 关'}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={()=>setLocalDebugMode(v=>!v)}
+            style={{
+              ...smallBtnStyle,
+              position:'fixed',
+              top:14,
+              left:14,
+              zIndex:120,
+              fontSize:11,
+              padding:'6px 10px',
+              background:localDebugMode?'#2a1608':'#140e08',
+              color:localDebugMode?'#f0cb7a':'#9b7641',
+              borderColor:localDebugMode?'#7a5324':'#3a2510',
+              boxShadow:localDebugMode?'0 0 14px #7a532455':'none',
+            }}
+          >
+            {localDebugMode?'Debug: 开':'Debug: 关'}
+          </button>
+          <button
+            type="button"
+            onClick={(e)=>{e.stopPropagation(); setShowDebugSettings(v=>!v);}}
+            style={{
+              ...smallBtnStyle,
+              position:'fixed',
+              top:14,
+              left:100,
+              zIndex:120,
+              fontSize:11,
+              padding:'6px 10px',
+              background:showDebugSettings?'#2a1608':'#140e08',
+              color:showDebugSettings?'#f0cb7a':'#9b7641',
+              borderColor:showDebugSettings?'#7a5324':'#3a2510',
+              boxShadow:showDebugSettings?'0 0 14px #7a532455':'none',
+            }}
+          >
+            Debug设置
+          </button>
+          {showDebugSettings&&(
+            <div style={{
+              position:'fixed',
+              top:50,
+              left:14,
+              zIndex:120,
+              background:'#1a120a',
+              border:'1px solid #3a2510',
+              borderRadius:4,
+              padding:16,
+              boxShadow:'0 0 20px rgba(0,0,0,0.8)',
+              color:'#c8a96e',
+              minWidth:300,
+            }}>
+              <h3 style={{marginTop:0,marginBottom:16,color:'#f0cb7a'}}>Debug设置</h3>
+              <div style={{marginBottom:12}}>
+                <label style={{display:'block',marginBottom:4,fontSize:12}}>强制摸牌目标</label>
+                <select
+                  value={debugForceCardTarget}
+                  onChange={(e)=>setDebugForceCardTarget(e.target.value)}
+                  style={{
+                    width:'100%',
+                    padding:6,
+                    background:'#2a1608',
+                    color:'#c8a96e',
+                    border:'1px solid #3a2510',
+                    borderRadius:4,
+                  }}
+                >
+                  <option value="player">玩家</option>
+                  <option value="ai1">第一名AI</option>
+                </select>
+              </div>
+              <div style={{marginBottom:12}}>
+                <label style={{display:'block',marginBottom:4,fontSize:12}}>牌类型</label>
+                <select
+                  value={debugForceCardType}
+                  onChange={(e)=>setDebugForceCardType(e.target.value)}
+                  style={{
+                    width:'100%',
+                    padding:6,
+                    background:'#2a1608',
+                    color:'#c8a96e',
+                    border:'1px solid #3a2510',
+                    borderRadius:4,
+                  }}
+                >
+                  <option value="zone">区域牌</option>
+                  <option value="god">神牌</option>
+                </select>
+              </div>
+              {debugForceCardType === 'zone' && (
+                <>
+                  <div style={{marginBottom:12}}>
+                    <label style={{display:'block',marginBottom:4,fontSize:12}}>区域牌编号</label>
+                    <select
+                      value={debugForceZoneCardKey}
+                      onChange={(e)=>{
+                        const newKey = e.target.value;
+                        setDebugForceZoneCardKey(newKey);
+                        // 自动选择第一个可用牌面
+                        const faces = FIXED_ZONE_EFFECTS_BY_FACE[newKey];
+                        if(faces){
+                          const firstFace = Object.keys(faces)[0];
+                          setDebugForceZoneCardFace(firstFace);
+                        }
+                      }}
+                      style={{
+                        width:'100%',
+                        padding:6,
+                        background:'#2a1608',
+                        color:'#c8a96e',
+                        border:'1px solid #3a2510',
+                        borderRadius:4,
+                      }}
+                    >
+                      {ZONE_CARD_KEYS.map(key => (
+                        <option key={key} value={key}>{key}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label style={{display:'block',marginBottom:4,fontSize:12}}>区域牌</label>
+                    <select
+                      value={debugForceZoneCardFace}
+                      onChange={(e)=>setDebugForceZoneCardFace(e.target.value)}
+                      style={{
+                        width:'100%',
+                        padding:6,
+                        background:'#2a1608',
+                        color:'#c8a96e',
+                        border:'1px solid #3a2510',
+                        borderRadius:4,
+                      }}
+                    >
+                      {FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey] && Object.entries(FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey]).map(([face, card]) => (
+                        <option key={face} value={face}>{card.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              {debugForceCardType === 'god' && (
+                <div style={{marginBottom:12}}>
+                  <label style={{display:'block',marginBottom:4,fontSize:12}}>神牌类型</label>
+                  <select
+                    value={debugForceGodCardKey}
+                    onChange={(e)=>setDebugForceGodCardKey(e.target.value)}
+                    style={{
+                      width:'100%',
+                      padding:6,
+                      background:'#2a1608',
+                      color:'#c8a96e',
+                      border:'1px solid #3a2510',
+                      borderRadius:4,
+                    }}
+                  >
+                    <option value="CTH">克苏鲁</option>
+                    <option value="NYA">Nyarlathotep</option>
+                  </select>
+                </div>
+              )}
+              <div style={{marginBottom:12}}>
+                <label style={{display:'block',marginBottom:4,fontSize:12}}>当前设置</label>
+                <div style={{fontSize:11,color:'#f0cb7a',padding:6,background:'#2a1608',border:'1px solid #3a2510',borderRadius:4}}>
+                  {debugForceCardType === 'zone' 
+                    ? `区域牌: ${debugForceZoneCardKey} - ${FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey]?.[debugForceZoneCardFace]?.name || ''}` 
+                    : `神牌: ${debugForceGodCardKey === 'CTH' ? '克苏鲁' : 'Nyarlathotep'}`
+                  }
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={()=>setShowDebugSettings(false)}
+                style={{
+                  ...smallBtnStyle,
+                  width:'100%',
+                  background:'#2a1608',
+                  color:'#c8a96e',
+                  borderColor:'#3a2510',
+                }}
+              >
+                关闭
+              </button>
+            </div>
+          )}
+        </>
       )}
     </>);
   }
@@ -11248,7 +11472,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
     _doStartNewGame();
   }
   function _doStartNewGame(silent=false){
-    const newGs=initGame();
+    const newGs=initGame(null, debugForceCard, debugForceCardTarget, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey);
     animQueueRef.current=[];
     pendingGsRef.current=null;
     setAnimExiting(false);
