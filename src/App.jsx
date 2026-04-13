@@ -8508,7 +8508,7 @@ function buildInspectionEventFlow(baseGs,events){
     } else {
       setGs(newGs);
     }
-  }, [gs?.currentTurn, roseThornKey, showTutorial, anim]);
+  }, [gs, showTutorial, anim]);
 
   // Trigger god resurrection animation for cultist victory
   useEffect(()=>{
