@@ -20,9 +20,9 @@ import {
 // 导入拆分出的游戏工具模块（第一阶段拆分：coreUtils + ai）
 // 本地保留同名函数作为默认实现，导入的版本可通过 game.xxx 访问
 import {
-  shuffle as gameShuffle,
-  clamp as gameClamp,
-  copyPlayers as gameCopyPlayers,
+  shuffle,
+  clamp,
+  copyPlayers,
   isZoneCard as gameIsZoneCard,
   isBlankZoneCard as gameIsBlankZoneCard,
   isNegativeZoneCard as gameIsNegativeZoneCard,
@@ -41,9 +41,9 @@ import {
 } from "./game/coreUtils";
 
 import {
-  aiChooseRevealCard as gameAiChooseRevealCard,
-  aiChooseHunterLootCards as gameAiChooseHunterLootCards,
-  aiShouldKeepZoneCard as gameAiShouldKeepZoneCard,
+  aiChooseRevealCard,
+  aiChooseHunterLootCards,
+  aiShouldKeepZoneCard,
 } from "./game/ai";
 
 // Ellipsis component for loading animation
@@ -64,18 +64,6 @@ function Ellipsis() {
 // ══════════════════════════════════════════════════════════════、
 //  UTILITIES
 // ══════════════════════════════════════════════════════════════
-const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}return b;};
-const clamp=(v,lo=0,hi=10)=>Math.max(lo,Math.min(hi,v));
-const copyPlayers=ps=>ps.map(p=>({
-  ...p,
-  hand:[...p.hand],
-  godZone:[...(p.godZone||[])],
-  zoneCards:[...(p.zoneCards||[])],
-  peekMemories:Object.fromEntries(Object.entries(p.peekMemories||{}).map(([k,v])=>[k,[...(v||[])]])),
-  disableRestNextTurn:!!p.disableRestNextTurn,
-  disableSkillNextTurn:!!p.disableSkillNextTurn,
-  handLimitDecreaseNextTurn:p.handLimitDecreaseNextTurn||0
-}));
 const isZoneCard=c=>!!c?.isZone;
 const isBlankZoneCard=c=>c?.type==='blankZone';
 const FACE_POLARITY={positive:'positive',negativeSelf:'negative',negativeAll:'negative'};
@@ -325,145 +313,6 @@ function chooseFirstComePickForAI(cards,ci,players){
   }));
   scored.sort((a,b)=>b.score-a.score);
   return scored[0].index;
-}
-
-// AI 亮牌策略：只根据当前追猎者的公开信息，选择风险最低的区域牌
-function aiChooseRevealCard(targetHand, hunterName, log=[], knownHunterCards=[]){
-  const zoneCards=targetHand.filter(isZoneCard);
-  if(!zoneCards.length)return targetHand[0];
-  const hunterLogPrefixes=[
-    `${hunterName} `,
-    `${hunterName}（追猎者）`,
-    `${hunterName}（寻宝者）`,
-    `${hunterName}（邪祀者）`,
-  ];
-  const isHunterEntry=entry=>hunterLogPrefixes.some(prefix=>entry.startsWith(prefix));
-  const parseCardKey=cardKey=>{
-    if(!cardKey)return null;
-    const letterMatch=cardKey.match(/[A-Z]/);
-    const numberMatch=cardKey.match(/\d+/);
-    if(!letterMatch||!numberMatch)return null;
-    return {key:cardKey,letter:letterMatch[0],number:parseInt(numberMatch[0])};
-  };
-  const hunterCardsInHand=[];
-  log.forEach(entry=>{
-    if(!isHunterEntry(entry)||!entry.includes('摸到')||!entry.includes('[')||!entry.includes(']'))return;
-    const cardMatch=entry.match(/\[(.*?)\]/);
-    const cardKey=cardMatch?.[1];
-    if(!cardKey)return;
-    const wasDiscarded=log.some(logEntry=>isHunterEntry(logEntry)&&logEntry.includes(`弃 [${cardKey}]`));
-    if(wasDiscarded)return;
-    const parsed=parseCardKey(cardKey);
-    if(parsed)hunterCardsInHand.push(parsed);
-  });
-
-  const safeRevealPatterns=[];
-  for(let index=0;index<log.length;index++){
-    const entry=log[index];
-    let targetName=null;
-    let cardKey=null;
-    if(hunterName==='你'){
-      const match=entry.match(/^你（追猎者）追捕 (.+?)，.+?亮出 \[(.*?)\]/);
-      targetName=match?.[1]||null;
-      cardKey=match?.[2]||null;
-      if(!targetName||!cardKey)continue;
-      const laterFailure=log.slice(index+1).some(nextEntry=>nextEntry===`放弃追捕 ${targetName}`);
-      if(!laterFailure)continue;
-    }else{
-      const escapedHunterName=hunterName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-      const match=entry.match(new RegExp(`^${escapedHunterName}（追猎者）对 (.+?) 【追捕】，亮出 \\[(.*?)\\]`));
-      targetName=match?.[1]||null;
-      cardKey=match?.[2]||null;
-      if(!targetName||!cardKey)continue;
-      const laterFailure=log.slice(index+1).some(nextEntry=>nextEntry===`无匹配手牌，放弃追捕 ${targetName}`);
-      if(!laterFailure)continue;
-    }
-    const parsed=parseCardKey(cardKey);
-    if(parsed)safeRevealPatterns.push(parsed);
-  }
-
-  const scored=zoneCards.map(c=>{
-    let safetyScore=0;
-
-    const isSimilarToHunterCard=hunterCardsInHand.some(hc=>hc.letter===c.letter||hc.number===c.number);
-    if(!isSimilarToHunterCard){
-      safetyScore+=3;
-    }
-
-    safeRevealPatterns.forEach(pattern=>{
-      if(pattern.key===c.key)safetyScore+=5;
-      else if(pattern.letter===c.letter||pattern.number===c.number)safetyScore+=2;
-    });
-
-    const discardedHunterCards=[];
-    log.forEach(entry=>{
-      if(isHunterEntry(entry)&&entry.includes('弃 [')&&entry.includes(']')){
-        const cardMatch=entry.match(/\[(.*?)\]/);
-        if(cardMatch){
-          const parsed=parseCardKey(cardMatch[1]);
-          if(parsed)discardedHunterCards.push(parsed);
-        }
-      }
-    });
-
-    const letterCount={};
-    const numberCount={};
-    discardedHunterCards.forEach(card=>{
-      letterCount[card.letter]=(letterCount[card.letter]||0)+1;
-      numberCount[card.number]=(numberCount[card.number]||0)+1;
-    });
-
-    safetyScore+=letterCount[c.letter]||0;
-    safetyScore+=numberCount[c.number]||0;
-
-    knownHunterCards.forEach(card=>{
-      if(!card)return;
-      if(card.key===c.key)safetyScore-=6;
-      else if((card.letter&&card.letter===c.letter)||(card.number!=null&&card.number===c.number))safetyScore-=3;
-    });
-
-    return{c,safetyScore};
-  });
-
-  scored.sort((a,b)=>b.safetyScore-a.safetyScore);
-  const maxScore=scored[0].safetyScore;
-  const bestCards=scored.filter(s=>s.safetyScore===maxScore);
-  const randomIndex=Math.floor(Math.random()*bestCards.length);
-  return bestCards[randomIndex].c;
-}
-
-function aiChooseHunterLootCards(targetHand,hunterHand,maxToTake=3){
-  const remaining=[...targetHand];
-  const chosen=[];
-  const hunterLetters=new Set(hunterHand.filter(c=>c?.letter).map(c=>c.letter));
-  const hunterNumbers=new Set(hunterHand.filter(c=>c?.number!=null).map(c=>c.number));
-  const pickCount=Math.min(maxToTake,remaining.length);
-  for(let pick=0;pick<pickCount;pick++){
-    let bestIdx=0;
-    let bestScore=-Infinity;
-    for(let i=0;i<remaining.length;i++){
-      const card=remaining[i];
-      const hasLetter=card?.letter!=null;
-      const hasNumber=card?.number!=null;
-      const missingLetter=hasLetter&&!hunterLetters.has(card.letter);
-      const missingNumber=hasNumber&&!hunterNumbers.has(card.number);
-      let score=0;
-      if(missingLetter)score+=2;
-      if(missingNumber)score+=2;
-      if(missingLetter&&missingNumber)score+=1;
-      if(card?.isGod)score-=3;
-      if(score>bestScore||(score===bestScore&&Math.random()<0.5)){
-        bestScore=score;
-        bestIdx=i;
-      }
-    }
-    const [card]=remaining.splice(bestIdx,1);
-    if(!card)break;
-    chosen.push(card);
-    if(card.letter!=null)hunterLetters.add(card.letter);
-    if(card.number!=null)hunterNumbers.add(card.number);
-  }
-  return chosen;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -882,14 +731,6 @@ function estimateZoneCardKeepScore(card,ci,players){
   if(self.role===ROLE_TREASURE)return estimateTreasureZoneCardScore(card,self,players,ci);
   return 0;
 }
-function aiShouldKeepZoneCard(card,ci,players,forced=false){
-  if(forced)return true;
-  const score=estimateZoneCardKeepScore(card,ci,players);
-  const polarity=getZoneCardPolarity(card);
-  if(polarity==='positive')return score>-1.5;
-  if(polarity==='neutral')return score>0.2;
-  return score>1.1;
-}
 function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor=[],isAI=false){
   let P=copyPlayers(ps),D=[...deck],Disc=[...disc],msgs=[];
   let statePatch={};
@@ -1119,8 +960,7 @@ function applyFx(card,ci,ti,ps,deck,disc,gs,avoidNegative=false,avoidNegativeFor
         }
       });
       break;
-    case 'selfHealHPSelfDamageSAN':
-      // 魅魔梦境：回复2HP，失去1SAN
+    case 'selfHealHPSelfDamageSAN':      // 魅魔梦境：回复2HP，失去1SAN
       healHP(ci,card.hpVal);
       if(!avoidNegative&&!avoidNegativeFor.includes(ci)){
         hurtSAN(ci,card.sanVal);
@@ -13553,3 +13393,4 @@ const GLOBAL_STYLES=`
     100% { opacity: 0; transform: translateY(70px) scale(0.3); }
   }
 `;
+
