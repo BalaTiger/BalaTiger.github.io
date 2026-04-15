@@ -3,8 +3,7 @@ import ReactDOM, { createPortal } from "react-dom";
 // socket.io-client is loaded at runtime via CDN (only outside Claude Artifacts)
 
 import {
-  FIXED_ZONE_EFFECTS_BY_FACE,
-  ZONE_FACE_ORDER,
+  FIXED_ZONE_EFFECTS_BY_KEY,
   LETTERS,
   NUMS,
   AI_NAMES,
@@ -26,6 +25,8 @@ import {
   isZoneCard,
   isBlankZoneCard,
   isNegativeZoneCard,
+  getZoneCardPolarity,
+  getZoneCardEffectScope,
   isWinHand,
   getLivingPlayerOrder,
   estimateZoneCardKeepScore,
@@ -60,10 +61,6 @@ function Ellipsis() {
 // ══════════════════════════════════════════════════════════════、
 //  UTILITIES
 // ══════════════════════════════════════════════════════════════
-const FACE_POLARITY={positive:'positive',negativeSelf:'negative',negativeAll:'negative'};
-const FACE_SCOPE={positive:'self',negativeSelf:'self',negativeAll:'all'};
-const getZoneCardPolarity=c=>c?.polarity||FACE_POLARITY[c?.face]||'neutral';
-const getZoneCardEffectScope=c=>c?.effectScope||FACE_SCOPE[c?.face]||'self';
 const cardsHuntMatch=(a,b)=>{
   if(!a||!b)return false;
   if(isBlankZoneCard(a)||isBlankZoneCard(b))return true;
@@ -99,14 +96,13 @@ function mkDeck(){
   let id=0;
   const zoneCards=LETTERS.flatMap(L=>NUMS.flatMap(N=>{
     const key=`${L}${N}`;
-    return ZONE_FACE_ORDER.map(face=>({
+    return (FIXED_ZONE_EFFECTS_BY_KEY[key]||[]).map((cardDef)=>({
+      ...cardDef,
       id:id++,
       key,
       letter:L,
       number:N,
-      face,
       isZone:true,
-      ...FIXED_ZONE_EFFECTS_BY_FACE[key][face],
     }));
   }));
   const godCards=[
@@ -2678,7 +2674,7 @@ const INSPECTION_DECK = [
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
-function initGame(playerNames, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey, debugPlayerRole){
+function initGame(playerNames, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardName, debugForceGodCardKey, debugPlayerRole){
   const names=playerNames||['你',...AI_NAMES];
   const N=names.length;
   const isSinglePlayer = !playerNames;
@@ -2688,9 +2684,9 @@ function initGame(playerNames, debugForceCard, debugForceCardTarget, debugForceC
   let targetCard = null;
   if((debugForceCard || (debugForceCardType && (debugForceZoneCardKey || debugForceGodCardKey))) && (debugForceCardTarget === 'player' || debugForceCardTarget === 'ai1')){
     
-    if(debugForceCardType === 'zone' && debugForceZoneCardKey && debugForceZoneCardFace){
+    if(debugForceCardType === 'zone' && debugForceZoneCardKey && debugForceZoneCardName){
       // 查找指定编号和牌面的区域牌
-      targetCard = deck.find(card => card.key === debugForceZoneCardKey && card.face === debugForceZoneCardFace);
+      targetCard = deck.find(card => card.key === debugForceZoneCardKey && card.name === debugForceZoneCardName);
     } else if(debugForceCardType === 'god' && debugForceGodCardKey){
       // 查找指定类型的神牌
       targetCard = deck.find(card => card.isGod && card.godKey === debugForceGodCardKey);
@@ -2701,7 +2697,7 @@ function initGame(playerNames, debugForceCard, debugForceCardTarget, debugForceC
     
     if(targetCard){
       // 从牌堆中移除目标牌，暂时保留
-      deck = deck.filter(card => !(card.key === targetCard.key && card.face === targetCard.face && card.isGod === targetCard.isGod && card.godKey === targetCard.godKey));
+      deck = deck.filter(card => card.id !== targetCard.id);
     }
   }
   
@@ -6741,7 +6737,9 @@ export default function Game(){
   const [debugForceCardKeep,setDebugForceCardKeep]=useState(()=>isLocalTestMode&&safeLS.get(DEBUG_FORCE_CARD_KEEP_KEY)||'auto');
   const [debugForceCardType,setDebugForceCardType]=useState('zone');
   const [debugForceZoneCardKey,setDebugForceZoneCardKey]=useState('A1');
-  const [debugForceZoneCardFace,setDebugForceZoneCardFace]=useState('front');
+  const [debugForceZoneCardName,setDebugForceZoneCardName]=useState(
+    ()=>FIXED_ZONE_EFFECTS_BY_KEY.A1?.[0]?.name||''
+  );
   const [debugForceGodCardKey,setDebugForceGodCardKey]=useState('CTH');
   const [debugPlayerRole,setDebugPlayerRole]=useState(()=>isLocalTestMode&&safeLS.get(DEBUG_PLAYER_ROLE_KEY)||'auto');
   const [showDebugSettings,setShowDebugSettings]=useState(false);
@@ -7014,7 +7012,7 @@ export default function Game(){
       if(isLocalSeatIndex(safeIdx)){
         // 房主：初始化游戏并广播给所有人
         const names=players.map(p=>p.username);
-        const rawGs=initGame(names, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey, debugPlayerRole);
+        const rawGs=initGame(names, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardName, debugForceGodCardKey, debugPlayerRole);
         animQueueRef.current=[];
         pendingGsRef.current=null;
         setAnimExiting(false);
@@ -9637,10 +9635,9 @@ function buildInspectionEventFlow(baseGs,events){
                         const newKey = e.target.value;
                         setDebugForceZoneCardKey(newKey);
                         // 自动选择第一个可用牌面
-                        const faces = FIXED_ZONE_EFFECTS_BY_FACE[newKey];
-                        if(faces){
-                          const firstFace = Object.keys(faces)[0];
-                          setDebugForceZoneCardFace(firstFace);
+                        const cards = FIXED_ZONE_EFFECTS_BY_KEY[newKey]||[];
+                        if(cards.length){
+                          setDebugForceZoneCardName(cards[0].name);
                         }
                       }}
                       style={{
@@ -9660,8 +9657,8 @@ function buildInspectionEventFlow(baseGs,events){
                   <div style={{marginBottom:12}}>
                     <label style={{display:'block',marginBottom:4,fontSize:12}}>区域牌</label>
                     <select
-                      value={debugForceZoneCardFace}
-                      onChange={(e)=>setDebugForceZoneCardFace(e.target.value)}
+                      value={debugForceZoneCardName}
+                      onChange={(e)=>setDebugForceZoneCardName(e.target.value)}
                       style={{
                         width:'100%',
                         padding:6,
@@ -9671,8 +9668,8 @@ function buildInspectionEventFlow(baseGs,events){
                         borderRadius:4,
                       }}
                     >
-                      {FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey] && Object.entries(FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey]).map(([face, card]) => (
-                        <option key={face} value={face}>{card.name}</option>
+                      {FIXED_ZONE_EFFECTS_BY_KEY[debugForceZoneCardKey] && FIXED_ZONE_EFFECTS_BY_KEY[debugForceZoneCardKey].map((card) => (
+                        <option key={card.name} value={card.name}>{card.name}</option>
                       ))}
                     </select>
                   </div>
@@ -9702,7 +9699,7 @@ function buildInspectionEventFlow(baseGs,events){
                 <label style={{display:'block',marginBottom:4,fontSize:12}}>当前设置</label>
                 <div style={{fontSize:11,color:'#f0cb7a',padding:6,background:'#2a1608',border:'1px solid #3a2510',borderRadius:4}}>
                   {debugForceCardType === 'zone' 
-                    ? `区域牌: ${debugForceZoneCardKey} - ${FIXED_ZONE_EFFECTS_BY_FACE[debugForceZoneCardKey]?.[debugForceZoneCardFace]?.name || ''}` 
+                    ? `区域牌: ${debugForceZoneCardKey} - ${debugForceZoneCardName || ''}` 
                     : `神牌: ${debugForceGodCardKey === 'CTH' ? '克苏鲁' : 'Nyarlathotep'}`
                   }
                 </div>
@@ -11522,7 +11519,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
     _doStartNewGame();
   }
   function _doStartNewGame(silent=false){
-    const newGs=initGame(null, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardFace, debugForceGodCardKey, debugPlayerRole);
+    const newGs=initGame(null, debugForceCard, debugForceCardTarget, debugForceCardKeep, debugForceCardType, debugForceZoneCardKey, debugForceZoneCardName, debugForceGodCardKey, debugPlayerRole);
     animQueueRef.current=[];
     pendingGsRef.current=null;
     setAnimExiting(false);

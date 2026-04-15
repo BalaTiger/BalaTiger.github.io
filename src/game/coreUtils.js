@@ -1,5 +1,4 @@
 import {
-  FIXED_ZONE_EFFECTS_BY_FACE,
   LETTERS,
   NUMS,
 } from '../constants/card';
@@ -34,36 +33,16 @@ export const isZoneCard = (card) => !!card?.isZone;
 
 export const isBlankZoneCard = (card) => card?.type === 'blankZone';
 
-export const FACE_POLARITY = {
-  positive: 'positive',
-  negativeSelf: 'negative',
-  negativeAll: 'negative'
-};
-
-export const FACE_SCOPE = {
-  positive: 'self',
-  negativeSelf: 'self',
-  negativeAll: 'all'
-};
-
 export const getZoneCardPolarity = (card) => {
   if (!card) return null;
   if (card.polarity) return card.polarity;
-  const slotKey = card.slotKey || card.key || card.letter;
-  const byFace = FIXED_ZONE_EFFECTS_BY_FACE[slotKey]?.[card.face];
-  if (byFace?.polarity) return byFace.polarity;
-  if (card.face && FACE_POLARITY[card.face]) return FACE_POLARITY[card.face];
-  return null;
+  return 'neutral';
 };
 
 export const getZoneCardEffectScope = (card) => {
   if (!card) return null;
   if (card.effectScope) return card.effectScope;
-  const slotKey = card.slotKey || card.key || card.letter;
-  const byFace = FIXED_ZONE_EFFECTS_BY_FACE[slotKey]?.[card.face];
-  if (byFace?.effectScope) return byFace.effectScope;
-  if (card.face && FACE_SCOPE[card.face]) return FACE_SCOPE[card.face];
-  return null;
+  return 'self';
 };
 
 export const isNegativeZoneCard = (card) => {
