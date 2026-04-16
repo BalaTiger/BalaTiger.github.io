@@ -1,5 +1,4 @@
 import {
-  FIXED_ZONE_EFFECTS_BY_FACE,
   LETTERS,
   NUMS,
 } from '../constants/card';
@@ -34,36 +33,16 @@ export const isZoneCard = (card) => !!card?.isZone;
 
 export const isBlankZoneCard = (card) => card?.type === 'blankZone';
 
-export const FACE_POLARITY = {
-  positive: 'positive',
-  negativeSelf: 'negative',
-  negativeAll: 'negative'
-};
-
-export const FACE_SCOPE = {
-  positive: 'self',
-  negativeSelf: 'self',
-  negativeAll: 'all'
-};
-
 export const getZoneCardPolarity = (card) => {
   if (!card) return null;
   if (card.polarity) return card.polarity;
-  const slotKey = card.slotKey || card.key || card.letter;
-  const byFace = FIXED_ZONE_EFFECTS_BY_FACE[slotKey]?.[card.face];
-  if (byFace?.polarity) return byFace.polarity;
-  if (card.face && FACE_POLARITY[card.face]) return FACE_POLARITY[card.face];
-  return null;
+  return 'neutral';
 };
 
 export const getZoneCardEffectScope = (card) => {
   if (!card) return null;
   if (card.effectScope) return card.effectScope;
-  const slotKey = card.slotKey || card.key || card.letter;
-  const byFace = FIXED_ZONE_EFFECTS_BY_FACE[slotKey]?.[card.face];
-  if (byFace?.effectScope) return byFace.effectScope;
-  if (card.face && FACE_SCOPE[card.face]) return FACE_SCOPE[card.face];
-  return null;
+  return 'self';
 };
 
 export const isNegativeZoneCard = (card) => {
@@ -80,12 +59,19 @@ export const isWinHand = (hand) => {
   if (!hand?.length) return false;
   const letters = new Set();
   const numbers = new Set();
+  let blankCount = 0;
   for (const c of hand) {
     if (c.isGod) continue;
+    if (isBlankZoneCard(c)) {
+      blankCount += 1;
+      continue;
+    }
     if (c.letter) letters.add(c.letter);
     if (c.number) numbers.add(c.number);
   }
-  return letters.size === LETTERS.length || numbers.size === NUMS.length;
+  const missingLetters = Math.max(0, LETTERS.length - letters.size);
+  const missingNumbers = Math.max(0, NUMS.length - numbers.size);
+  return Math.max(missingLetters, missingNumbers) <= blankCount;
 };
 
 export const getLivingPlayerOrder = (players, startIdx) => {
@@ -100,11 +86,11 @@ export const getLivingPlayerOrder = (players, startIdx) => {
 export const cardLogText = (card, opts = {}) => {
   if (!card) return '???';
   const { alwaysShowName = false } = opts;
-  if (alwaysShowName || !card.isZone) return card.name || '???';
-  const letterPart = card.letter ? `[${card.letter}]` : '';
-  const numberPart = card.number ? String(card.number) : '';
+  if (!card.isZone) return card.name || '???';
+  const codePart = (card.letter || card.number != null) ? `[${card.letter || ''}${card.number || ''}]` : '';
   const namePart = card.name || '';
-  return `${letterPart}${numberPart} ${namePart}`.trim() || '???';
+  if (alwaysShowName) return `${codePart} ${namePart}`.trim() || namePart || '???';
+  return codePart || namePart || '???';
 };
 
 export const estimateZoneCardKeepScore = (card, ci, players) => {
