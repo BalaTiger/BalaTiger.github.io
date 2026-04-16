@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactDOM, { createPortal } from "react-dom";
+import html2canvas from "html2canvas";
 // socket.io-client is loaded at runtime via CDN (only outside Claude Artifacts)
 
 import {
@@ -2466,6 +2467,78 @@ const ANIM_STEP_GAP=420;
 const AI_AUTO_STEP_DELAY=900;
 const AI_PICK_STEP_DELAY=1300;
 
+const EMPTY_TURN_ANIM_FIELDS=Object.freeze({
+  _playersBeforeThisDraw:null,
+  _turnStartLogs:[],
+  _drawLogs:[],
+  _statLogs:[],
+  _preTurnPlayers:null,
+  _preTurnStatLogs:[],
+});
+function withClearedTurnAnimFields(state,extra={}){
+  return {...state,...EMPTY_TURN_ANIM_FIELDS,...extra};
+}
+function buildLocalCthDecisionState(baseState,{
+  players,
+  deck,
+  discard,
+  log,
+  drawnCard,
+  remainingDraws,
+  needGodChoice=false,
+  preStatLogs=[],
+  statLogs=[],
+  extraState={},
+}){
+  const drawLogs=[`你 摸到 ${cardLogText(drawnCard,{alwaysShowName:true})}`,...(needGodChoice?[]:preStatLogs)];
+  if(needGodChoice){
+    return {
+      ...baseState,
+      players,
+      deck,
+      discard,
+      log,
+      currentTurn:0,
+      phase:'GOD_CHOICE',
+      abilityData:{godCard:drawnCard,fromRest:true,cthDrawsRemaining:remainingDraws,drawerIdx:0},
+      drawReveal:null,
+      selectedCard:null,
+      _turnStartLogs:[],
+      _drawLogs:drawLogs,
+      _statLogs:[],
+      ...extraState,
+    };
+  }
+  return {
+    ...baseState,
+    players,
+    deck,
+    discard,
+    log,
+    currentTurn:0,
+    phase:'DRAW_REVEAL',
+    drawReveal:{card:drawnCard,msgs:[],needsDecision:true,forcedKeep:false,drawerIdx:0,drawerName:players[0].name,fromRest:true},
+    selectedCard:null,
+    abilityData:{fromRest:true,cthDrawsRemaining:remainingDraws},
+    _turnStartLogs:[],
+    _drawLogs:drawLogs,
+    _statLogs:statLogs,
+    ...extraState,
+  };
+}
+function buildPlayerTurnDrawQueue(oldGs,newGs,seedQueue=[]){
+  const queue=[...(Array.isArray(seedQueue)?seedQueue:[])];
+  if(isLocalCurrentTurn(newGs)&&newGs.drawReveal?.card){
+    queue.push(
+      {type:'YOUR_TURN',msgs:newGs._turnStartLogs},
+      {type:'DRAW_CARD',card:newGs.drawReveal.card,triggerName:'你',targetPid:0,msgs:newGs._drawLogs}
+    );
+    const statQ=bindAnimLogChunks(buildAnimQueue(oldGs,newGs),{statLogs:newGs._statLogs});
+    queue.push(...statQ);
+  }
+  return queue;
+}
+
 function buildAnimQueue(oldGs,newGs){
   const q=[];
   const newMsgs=newGs.log.slice(oldGs.log.length);
@@ -3522,18 +3595,29 @@ function GuillotineAnim({targets}){
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:1400,pointerEvents:'none',overflow:'hidden'}}>
-      {/* Dark vignette pulse */}
       <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0)',animation:'guillotineVig 2.5s ease-in-out forwards'}}/>
       {targets.map((t,ti)=>{
+        const hasSnapshot=!!t.snapshotUrl;
         return(
           <React.Fragment key={ti}>
-            {/* ── 切割效果 ── */}
             {phase==='slice'&&(
               <div style={{
                 position:'absolute',
                 left:t.x,top:t.y,width:t.w,height:t.h,
+                overflow:'hidden',
+                borderRadius:3,
               }}>
-                {/* 切割线 */}
+                {hasSnapshot&&(
+                  <div style={{
+                    position:'absolute',
+                    inset:0,
+                    backgroundImage:`url(${t.snapshotUrl})`,
+                    backgroundSize:'100% 100%',
+                    backgroundPosition:'center',
+                    filter:'brightness(0.92) saturate(0.95)',
+                    opacity:0.96,
+                  }}/>
+                )}
                 <div style={{
                   position:'absolute',
                   left:-t.w,top:-t.h,width:t.w*3,height:t.h*3,
@@ -3541,14 +3625,12 @@ function GuillotineAnim({targets}){
                   background:'linear-gradient(90deg, transparent 0%, rgba(255,0,0,0.8) 50%, transparent 100%)',
                   animation:'sliceEffect 0.5s ease-out forwards',
                 }}/>
-                {/* 切割闪光 */}
                 <div style={{
                   position:'absolute',
                   left:t.x-10,top:t.y-10,width:t.w+20,height:t.h+20,
                   background:'radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(255,100,100,0.6) 50%, transparent 100%)',
                   animation:'sliceFlash 0.3s ease-out forwards',
                 }}/>
-                {/* 血迹效果 */}
                 <div style={{
                   position:'absolute',
                   left:t.x-20,top:t.y-20,width:t.w+40,height:t.h+40,
@@ -3557,25 +3639,85 @@ function GuillotineAnim({targets}){
                 }}/>
               </div>
             )}
-            {/* ── 滑动效果 ── */}
             {phase==='slide'&&(
               <>
-                {/* 上半部分 */}
                 <div style={{
                   position:'absolute',
-                  left:t.x,top:t.y,width:t.w,height:t.h,
-                  clipPath:`polygon(0 0, 100% 0, 100% 100%, 0 100%, calc(0% + (100% - 0%) * tan(30deg)) 0)`,
-                  background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
+                  left:t.x,top:t.y,width:t.w,height:t.h/2,
+                  overflow:'hidden',
+                  borderTopLeftRadius:3,
+                  borderTopRightRadius:3,
                   animation:'slideUp 1s ease-out forwards',
-                }}/>
-                {/* 下半部分 */}
+                  boxShadow:hasSnapshot?'0 6px 18px rgba(0,0,0,0.28)':'none',
+                }}>
+                  {hasSnapshot?(
+                    <div style={{
+                      position:'absolute',
+                      inset:0,
+                      backgroundImage:`url(${t.snapshotUrl})`,
+                      backgroundSize:`${t.w}px ${t.h}px`,
+                      backgroundPosition:'center top',
+                      backgroundRepeat:'no-repeat',
+                    }}/>
+                  ):(
+                    <div style={{
+                      position:'absolute',
+                      inset:0,
+                      background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
+                    }}/>
+                  )}
+                </div>
                 <div style={{
                   position:'absolute',
-                  left:t.x,top:t.y,width:t.w,height:t.h,
-                  clipPath:`polygon(0 0, 100% 0, 100% 100%, 0 100%, calc(0% + (100% - 0%) * tan(30deg)) 100%)`,
-                  background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
+                  left:t.x,top:t.y+t.h/2,width:t.w,height:t.h/2,
+                  overflow:'hidden',
+                  borderBottomLeftRadius:3,
+                  borderBottomRightRadius:3,
                   animation:'slideDown 1s ease-out forwards',
-                }}/>
+                  boxShadow:hasSnapshot?'0 6px 18px rgba(0,0,0,0.28)':'none',
+                }}>
+                  {hasSnapshot?(
+                    <div style={{
+                      position:'absolute',
+                      left:0,
+                      top:-t.h/2,
+                      width:t.w,
+                      height:t.h,
+                      backgroundImage:`url(${t.snapshotUrl})`,
+                      backgroundSize:`${t.w}px ${t.h}px`,
+                      backgroundPosition:'center top',
+                      backgroundRepeat:'no-repeat',
+                    }}/>
+                  ):(
+                    <div style={{
+                      position:'absolute',
+                      inset:0,
+                      background:'linear-gradient(135deg, rgba(255,100,100,0.3) 0%, rgba(255,0,0,0.2) 100%)',
+                    }}/>
+                  )}
+                </div>
+                {hasSnapshot&&(
+                  <>
+                    <div style={{
+                      position:'absolute',
+                      left:t.x,
+                      top:t.y+(t.h/2)-1,
+                      width:t.w,
+                      height:2,
+                      background:'linear-gradient(90deg, transparent 0%, rgba(255,230,230,0.95) 50%, transparent 100%)',
+                      boxShadow:'0 0 12px rgba(255,80,80,0.8)',
+                    }}/>
+                    <div style={{
+                      position:'absolute',
+                      left:t.x-10,
+                      top:t.y-10,
+                      width:t.w+20,
+                      height:t.h+20,
+                      background:'radial-gradient(ellipse at center, rgba(180,10,10,0.22) 0%, rgba(80,0,0,0.08) 58%, transparent 100%)',
+                      animation:'bloodSpread 1s ease-out forwards',
+                    }}/>
+                  </>
+                )}
               </>
             )}
           </React.Fragment>
@@ -3584,7 +3726,6 @@ function GuillotineAnim({targets}){
     </div>
   );
 }
-
 // ── God Resurrection Animation (邪祀者 win) ────────────────────
 function GodResurrectionAnim({onDone}){
   const [textPhase, setTextPhase] = useState(0); // 0: black, 1: transitioning, 2: red with blood
@@ -4577,7 +4718,7 @@ function HealCrossEffect({color='#4ade80'}){
   );
 }
 
-function PlayerPanel({player,playerIndex,isCurrentTurn,isSelectable,onSelect,showFaceUp,onCardSelect,isBeingHit,isSanHit,isHpHeal,isSanHeal,displayStats}){
+function PlayerPanel({player,playerIndex,isCurrentTurn,isSelectable,onSelect,showFaceUp,onCardSelect,isBeingHit,isSanHit,isHpHeal,isSanHeal,isBeingGuillotined,displayStats}){
   const ri=RINFO[player.role];
   const borderColor=isBeingHit?'#cc2222':isSanHit?'#8840cc':isCurrentTurn?'#c8a96e':isSelectable?ri.col:'#3a2510';
   const handCards=showFaceUp?player.hand:player.hand.map((_,ci)=>({id:`back-${playerIndex}-${ci}`,_back:true}));
@@ -4595,7 +4736,7 @@ function PlayerPanel({player,playerIndex,isCurrentTurn,isSelectable,onSelect,sho
       borderRadius:3,padding:'8px 9px',
       cursor:isSelectable?'pointer':'default',
       // 只有在死亡特效播放完成后才置灰（_pendingAnimDeath为false或不存在的isDead角色）
-      opacity: player.isDead && !player._pendingAnimDeath ? 0.32 : 1,
+      opacity: isBeingGuillotined ? 0 : (player.isDead && !player._pendingAnimDeath ? 0.32 : 1),
       transition:'all .2s',
       position:'relative',
       overflow:'hidden',
@@ -6671,6 +6812,7 @@ export default function Game(){
   const [damageLinkGhosts,setDamageLinkGhosts]=useState([]);
   const animCallbackRef=useRef(null); // callback to execute after animation queue
   const timerRef=useRef(null);
+  const guillotinedPids=useMemo(()=>new Set((guillotineTargets||[]).map(t=>t?.pi).filter(v=>v!=null)),[guillotineTargets]);
   const logRef=useRef(null);
   const [visibleLog,setVisibleLog]=useState(Array.isArray(gs?.log)?gs.log:[]);
   const visibleLogRef=useRef(Array.isArray(gs?.log)?gs.log:[]);
@@ -6998,23 +7140,42 @@ export default function Game(){
       setCardTransfers(prev=>[...prev,{srcX,srcY,destX,destY,count,key}]);
       setTimeout(()=>setCardTransfers(prev=>prev.filter(t=>t.key!==key)),750);
     }else if(anim?.type==='GUILLOTINE'&&anim.hitIndices?.length){
-      // 双 rAF 测量（与 SKILL_HUNT 相同，过滤容器外的 position:fixed 需要 viewport 坐标）
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        const pts=anim.hitIndices.map(idx=>{
+      let cancelled=false;
+      requestAnimationFrame(()=>requestAnimationFrame(async ()=>{
+        const pts=await Promise.all(anim.hitIndices.map(async idx=>{
           const el=document.querySelector(`[data-pid="${idx}"]`);
           if(!el)return null;
           const r=el.getBoundingClientRect();
-          return{x:r.left,y:r.top,w:r.width,h:r.height,cx:r.left+r.width/2,cy:r.top+r.height/2};
-        }).filter(Boolean);
-        setGuillotineTargets(pts);
+          let snapshotUrl=null;
+          try{
+            const canvas=await html2canvas(el,{
+              backgroundColor:null,
+              useCORS:true,
+              logging:false,
+              scale:Math.min(window.devicePixelRatio||1,2),
+            });
+            snapshotUrl=canvas.toDataURL("image/png");
+          }catch(err){
+            console.warn("[death-snapshot] capture failed for pid",idx,err);
+          }
+          return{pi:idx,x:r.left,y:r.top,w:r.width,h:r.height,cx:r.left+r.width/2,cy:r.top+r.height/2,snapshotUrl};
+        }));
+        if(!cancelled){
+          setGuillotineTargets(pts.filter(Boolean));
+        }
       }));
-      // Blade impact at ~540ms; shake starts then
       const shakeTimer=setTimeout(()=>{
         setDeathShake(true);
         clearTimeout(shakeTimerRef.current);
         shakeTimerRef.current=setTimeout(()=>setDeathShake(false),2000);
       },540);
-      return()=>clearTimeout(shakeTimer);
+      return()=>{
+        cancelled=true;
+        clearTimeout(shakeTimer);
+      };
+    }else if(anim?.type==='DEATH'){
+      setGuillotineTargets([]);
+      setDeathShake(false);
     }else if(!anim){
       setHitIndices([]);
       setKnifeTargets([]);
@@ -11105,7 +11266,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
               const onCardSelectForSwap=isSwapTargetCardPhase?((cardIdx)=>swapSelectTargetCard(cardIdx)):isHuntCardFromPublicPhase?((cardIdx)=>huntSelectCardFromPublic(cardIdx)):null;
               return(
                 <div key={p.id} data-pid={pi} style={{position:'relative',zIndex:isSel?101:undefined,alignSelf:'start'}}>
-                <PlayerPanel player={p} playerIndex={pi} isCurrentTurn={visualCurrentTurn===pi} isSelectable={isSel} showFaceUp={showFaceUpForSwap} onSelect={()=>handleAIClick(pi)} onCardSelect={onCardSelectForSwap} isBeingHit={hitIndices.includes(pi)} isSanHit={sanHitIndices.includes(pi)} isHpHeal={hpHealIndices.includes(pi)} isSanHeal={sanHealIndices.includes(pi)} displayStats={displayStats}/>
+                <PlayerPanel player={p} playerIndex={pi} isCurrentTurn={visualCurrentTurn===pi} isSelectable={isSel} showFaceUp={showFaceUpForSwap} onSelect={()=>handleAIClick(pi)} onCardSelect={onCardSelectForSwap} isBeingHit={hitIndices.includes(pi)} isSanHit={sanHitIndices.includes(pi)} isHpHeal={hpHealIndices.includes(pi)} isSanHeal={sanHealIndices.includes(pi)} isBeingGuillotined={guillotinedPids.has(pi)} displayStats={displayStats}/>
                 </div>
               );
             })}
@@ -11114,7 +11275,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
         {/* Middle: self info + deck/discard piles + log */}
         <div style={{display:'flex',gap:isMobile?5:7,flexWrap:isMobile?'wrap':'nowrap'}}>
           {/* Self panel */}
-          <div ref={selfPanelRef} data-pid={0} style={{background:'#180f07',border:`1.5px solid ${hitIndices.includes(0)?'#cc2222':sanHitIndices.includes(0)?'#8840cc':suppressAnim&&tutorialStep>=2&&tutorialStep<=4?'#c8a96e':'#3a2510'}`,borderRadius:3,padding:isMobile?'10px 11px':'12px 13px',width:isMobile?undefined:155,flexBasis:isMobile?'calc(58% - 2.5px)':undefined,minHeight:isMobile?undefined:222,flexShrink:0,display:'flex',flexDirection:'column',gap:9,position:'relative',overflow:'visible',boxShadow:suppressAnim&&tutorialStep>=2&&tutorialStep<=4?'0 0 0 2px #c8a96e66,0 0 20px #c8a96e44':undefined}}>
+          <div ref={selfPanelRef} data-pid={0} style={{background:'#180f07',border:`1.5px solid ${hitIndices.includes(0)?'#cc2222':sanHitIndices.includes(0)?'#8840cc':suppressAnim&&tutorialStep>=2&&tutorialStep<=4?'#c8a96e':'#3a2510'}`,borderRadius:3,padding:isMobile?'10px 11px':'12px 13px',width:isMobile?undefined:155,flexBasis:isMobile?'calc(58% - 2.5px)':undefined,minHeight:isMobile?undefined:222,flexShrink:0,display:'flex',flexDirection:'column',gap:9,position:'relative',overflow:'visible',boxShadow:suppressAnim&&tutorialStep>=2&&tutorialStep<=4?'0 0 0 2px #c8a96e66,0 0 20px #c8a96e44':undefined,opacity:guillotinedPids.has(0)?0:1}}>
             {/* SAN mist: rendered by full-screen SanMistOverlay */}
             {(hpHealIndices.includes(0)||sanHealIndices.includes(0))&&<HealCrossEffect color={sanHealIndices.includes(0)?'#a78bfa':'#4ade80'}/>}
             <div>
