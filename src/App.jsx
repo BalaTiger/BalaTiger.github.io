@@ -9608,9 +9608,9 @@ export default function Game(){
       // 单机游戏：显示具体卡牌信息
       L=[...gs.log,`你偷看了 ${targetPlayer.name} 的一张手牌：${cardLogText(peekedCard,{alwaysShowName:true})}`];
     }
-    const resumesAiTurn = peekHandSource != null && peekHandSource !== 0 && !P[peekHandSource]?.isDead;
+    const resumesAiTurn = isAiSeat(gs, gs.currentTurn) && !P[gs.currentTurn]?.isDead;
     const nextPhase = resumesAiTurn ? 'AI_TURN' : 'ACTION';
-    const nextGs = {...gs, players: P, log: L, phase: nextPhase, currentTurn: resumesAiTurn ? peekHandSource : gs.currentTurn, skillUsed: isLocalSeatIndex(peekHandSource) ? gs.skillUsed : false, abilityData: {
+    const nextGs = {...gs, players: P, log: L, phase: nextPhase, currentTurn: gs.currentTurn, skillUsed: gs.skillUsed, abilityData: {
       ...(gs.abilityData?.fromRest?{fromRest:true}:{}),
       ...(gs.abilityData?.cthDrawsRemaining!=null?{cthDrawsRemaining:gs.abilityData.cthDrawsRemaining}:{}),
     }};
@@ -9700,8 +9700,8 @@ export default function Game(){
       L=[...gs.log,`【穴居人战争】${P[caveDuelSource].name} 亮出 ${cardLogText(sourceCard,{alwaysShowName:true})}，${P[ti].name} 亮出 ${cardLogText(targetCard,{alwaysShowName:true})}，平局，各自收回自己的牌`];
     }
     const winnerIdx=sourceNumber>targetNumber?caveDuelSource:targetNumber>sourceNumber?ti:null;
-    const resumesAiTurn = isAiSeat(gs,caveDuelSource) && !gs.abilityData?.fromRest;
-    const nextGs={...gs,players:P,log:L,phase:resumesAiTurn?'AI_TURN':'ACTION',currentTurn:resumesAiTurn?caveDuelSource:gs.currentTurn,abilityData:{
+    const resumesAiTurn = isAiSeat(gs, gs.currentTurn) && !gs.abilityData?.fromRest;
+    const nextGs={...gs,players:P,log:L,phase:resumesAiTurn?'AI_TURN':'ACTION',currentTurn:gs.currentTurn,abilityData:{
       ...(gs.abilityData?.fromRest?{fromRest:true}:{}),
       ...(gs.abilityData?.cthDrawsRemaining!=null?{cthDrawsRemaining:gs.abilityData.cthDrawsRemaining}:{}),
     },
@@ -9776,14 +9776,14 @@ export default function Game(){
     sourcePlayer.damageLink={partner:ti,active:true,expiryOwner:damageLinkSource};
     targetPlayer.damageLink={partner:damageLinkSource,active:true,expiryOwner:damageLinkSource};
 const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.name} 间架起链条，一方受到HP伤害时另一方受等量伤害`];
-    const resumesAiTurn = damageLinkSource != null && damageLinkSource !== 0 && !P[damageLinkSource]?.isDead;
+    const resumesAiTurn = isAiSeat(gs, gs.currentTurn) && !P[gs.currentTurn]?.isDead;
     const nextPhase = resumesAiTurn ? 'AI_TURN' : 'ACTION';
     const nextGs = {
       ...gs,
       players: P,
       log: L,
       phase: nextPhase,
-      currentTurn: resumesAiTurn ? damageLinkSource : gs.currentTurn,
+      currentTurn: gs.currentTurn,
       abilityData: {
         ...(gs.abilityData?.fromRest ? { fromRest: true } : {}),
         ...(gs.abilityData?.cthDrawsRemaining != null ? { cthDrawsRemaining: gs.abilityData.cthDrawsRemaining } : {}),
@@ -9836,7 +9836,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
       });
       return;
     }
-    const resumesAiTurn = roseThornSource != null && roseThornSource !== 0 && !P[roseThornSource]?.isDead;
+    const resumesAiTurn = isAiSeat(gs, gs.currentTurn) && !P[gs.currentTurn]?.isDead;
     const nextPhase = resumesAiTurn ? 'AI_TURN' : 'ACTION';
     const nextGs = {
       ...gs,
@@ -9845,7 +9845,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
       discard: Disc,
       log: L,
       phase: nextPhase,
-      currentTurn: resumesAiTurn ? roseThornSource : gs.currentTurn,
+      currentTurn: gs.currentTurn,
       abilityData: nextAbilityData,
     };
     if (gs.abilityData?.fromRest) { _cthContinueRestDraws(nextGs); return; }
@@ -9876,8 +9876,8 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
       return;
     }
     if(nextPickIndex>=pickOrder.length||revealedCards.length===0){
-      const resumesAiTurn = isAiSeat(gs, abilityData.pickSource);
-      const newGs = {...gs, players: P, deck: D, discard: Disc, log: L, phase: resumesAiTurn ? 'AI_TURN' : 'ACTION', currentTurn: resumesAiTurn ? abilityData.pickSource : gs.currentTurn, abilityData: {
+      const resumesAiTurn = isAiSeat(gs, gs.currentTurn);
+      const newGs = {...gs, players: P, deck: D, discard: Disc, log: L, phase: resumesAiTurn ? 'AI_TURN' : 'ACTION', currentTurn: gs.currentTurn, abilityData: {
         ...(abilityData.fromRest?{fromRest:true}:{}),
         ...(abilityData.cthDrawsRemaining!=null?{cthDrawsRemaining:abilityData.cthDrawsRemaining}:{}),
       },
