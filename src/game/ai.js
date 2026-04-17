@@ -66,6 +66,129 @@ function zoneCardUsesTargetInteraction(card) {
   return !!card?.type && ['swapAllHands', 'caveDuel', 'damageLink', 'roseThornGiftAllHand', 'globalOnlySwap'].includes(card.type);
 }
 
+function zoneCardCanGiftLowerSan(card, target) {
+  if (!card?.type || !target) return 0;
+  switch (card.type) {
+    case 'selfDamageSAN':
+    case 'selfDamageDiscardSAN':
+    case 'selfDamageRestSAN':
+      return card.val || 0;
+    case 'selfDamageSANCond':
+      return (card.val || 0) + ((card.condType === 'sanHigh' && target.san >= (card.condVal || 0)) ? (card.bonus || 0) : 0);
+    case 'selfDamageHPSAN':
+    case 'selfHealHPSelfDamageSAN':
+      return card.sanVal || 0;
+    case 'adjDamageSAN':
+      return card.val || 0;
+    case 'adjDamageBoth':
+      return card.sanVal || card.val || 0;
+    case 'allDamageSAN':
+      return card.val || 0;
+    case 'allDamageBoth':
+      return card.sanVal || card.val || 0;
+    case 'selfDamageAdjDamageBoth':
+      return card.sanVal || 0;
+    default:
+      return 0;
+  }
+}
+
+function zoneCardGiftHpHealValue(card) {
+  if (!card?.type) return 0;
+  switch (card.type) {
+    case 'selfHealHP':
+      return card.val || 0;
+    case 'selfHealBoth':
+      return card.val || 1;
+    case 'selfHealBoth21':
+      return 2;
+    case 'selfRevealHandHP':
+      return 10;
+    case 'selfHealAdjDamageHP':
+    case 'selfHealAdjHealHP':
+      return card.val || 0;
+    case 'selfHealHPSelfDamageSAN':
+      return card.hpVal || 0;
+    case 'adjHealHP':
+      return card.val || 0;
+    case 'sacHealHP':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function zoneCardGiftHpDamageValue(card, target) {
+  if (!card?.type || !target) return 0;
+  switch (card.type) {
+    case 'selfDamageHP':
+    case 'selfDamageDiscardHP':
+    case 'selfDamageRestHP':
+    case 'selfDamageHPPeek':
+      return card.val || 0;
+    case 'selfDamageHPCond':
+      return (card.val || 0) + ((card.condType === 'hpLow' && target.hp <= (card.condVal || 0)) ? (card.bonus || 0) : 0);
+    case 'selfDamageHPSAN':
+      return card.hpVal || 0;
+    case 'adjDamageHP':
+      return card.val || 0;
+    case 'adjDamageBoth':
+      return card.hpVal || card.val || 0;
+    case 'allDamageHP':
+      return card.val || 0;
+    case 'allDamageBoth':
+      return card.hpVal || card.val || 0;
+    case 'selfDamageAdjDamageHP':
+      return card.val || 0;
+    case 'selfDamageAdjDamageBoth':
+      return card.hpVal || 0;
+    case 'allDamageHPRandomExtra':
+      return card.val || 0;
+    default:
+      return 0;
+  }
+}
+
+function zoneCardGiftRestsTarget(card) {
+  return ['selfDamageRestHP', 'selfDamageRestSAN', 'adjRest'].includes(card?.type);
+}
+
+function zoneCardSupportsCultistKeep(card) {
+  if (!card) return false;
+  return zoneCardCanGiftLowerSan(card, { san: 99, hp: 99 }) > 0 || zoneCardGiftHpHealValue(card) > 0;
+}
+
+function estimateGodGiftSanLoss(card, target) {
+  if (!card?.isGod || !target || target.isDead) return 0;
+  if ((target._nyaBorrow || target.role) === ROLE_CULTIST) return 0;
+  const encounterCost = (target.godEncounters || 0) + 1;
+  const convertCost = target.godName && target.godName !== card.godKey ? 1 : 0;
+  return encounterCost + convertCost;
+}
+
+function getCultistSanTargetPriority(target) {
+  if (!target) return 99;
+  if (target.role === ROLE_CULTIST && target.roleRevealed) return 0;
+  if (!target.roleRevealed) return 1;
+  if (target.role === ROLE_HUNTER) return 2;
+  if (target.role === ROLE_TREASURE) return 3;
+  return 4;
+}
+
+function getDualLowTargets(players, sourceIdx) {
+  return players
+    .map((player, idx) => ({ player, idx }))
+    .filter(({ player, idx }) => idx !== sourceIdx && !player.isDead && player.hp <= 5 && player.san <= 5);
+}
+
+function sortByLowestSanThenHp(a, b) {
+  return (a.player.san - b.player.san) || (a.player.hp - b.player.hp) || (a.idx - b.idx);
+}
+
+function sortByLowestHpThenSan(a, b) {
+  return (a.player.hp - b.player.hp) || (a.player.san - b.player.san) || (a.idx - b.idx);
+}
+
 function estimateHunterZoneCardScore(card, self, players, ci) {
   let score = 0;
   switch (card.type) {
@@ -165,13 +288,20 @@ function estimateHunterZoneCardScore(card, self, players, ci) {
   if (self.hp <= 2 && zoneCardHasGuaranteedHpLoss(card)) score -= 4;
   if (self.san <= 2 && zoneCardHasGuaranteedSanLoss(card)) score -= 4;
 
-  if (self.hand.length === 0 && score < 0) {
+  const abandonedHunts = self?._abandonedHunts || 0;
+  const ammoPressure = self.hand.length <= 2 || abandonedHunts >= 2;
+  if (ammoPressure && score < 0) {
     const isSelfDamage = ['selfDamageHP', 'selfDamageSAN', 'selfDamageHPSAN', 'selfDamageRestHP', 'selfDamageRestSAN', 'selfDamageHPPeek', 'selfDamageDiscardHP', 'selfDamageDiscardSAN'].includes(card.type);
     if (isSelfDamage) {
       const willHpBe = self.hp - (zoneCardHasGuaranteedHpLoss(card) ? (card.val || card.hpVal || 1) : 0);
       const willSanBe = self.san - (zoneCardHasGuaranteedSanLoss(card) ? (card.val || card.sanVal || 1) : 0);
       if (willHpBe >= 5 && willSanBe >= 5 && card.type !== 'selfDamageRestHP' && card.type !== 'selfDamageRestSAN') {
-        score += 10;
+        let ammoBonus = 0;
+        if (self.hand.length === 0) ammoBonus += 10;
+        else if (self.hand.length === 1) ammoBonus += 7;
+        else ammoBonus += 4.5;
+        ammoBonus += Math.min(abandonedHunts, 3) * 1.5;
+        score += ammoBonus;
       }
     }
   }
@@ -555,6 +685,143 @@ export function chooseAiRoseThornTarget(players, sourceIdx, validTargetIndices) 
   )[0].idx;
 }
 
+export function chooseAiCultistBewitchPlan(players, sourceIdx) {
+  const self = players?.[sourceIdx];
+  if (!self || self.isDead) return null;
+  const targets = players
+    .map((player, idx) => ({ player, idx }))
+    .filter(({ player, idx }) => idx !== sourceIdx && !player.isDead);
+  if (!targets.length || !(self.hand || []).length) return null;
+
+  const hand = [...self.hand];
+  const regionCards = hand.filter(card => !card.isGod);
+  const godCards = hand.filter(card => card.isGod);
+
+  // 1. Immediate cultist win: choose any card that can push a target SAN to 0 or below.
+  const lethalCandidates = [];
+  for (const target of targets) {
+    for (const card of hand) {
+      const sanLoss = card.isGod
+        ? estimateGodGiftSanLoss(card, target.player)
+        : zoneCardCanGiftLowerSan(card, target.player);
+      if (sanLoss > 0 && target.player.san - sanLoss <= 0 && target.player.hp > 0) {
+        lethalCandidates.push({
+          card,
+          targetIdx: target.idx,
+          score: sanLoss * 10 + (10 - target.player.san) + (card.isGod ? 2 : 0),
+        });
+      }
+    }
+  }
+  if (lethalCandidates.length) {
+    lethalCandidates.sort((a, b) => b.score - a.score);
+    return { card: lethalCandidates[0].card, targetIdx: lethalCandidates[0].targetIdx };
+  }
+
+  // 2. Heal HP for a target who is both HP-low and SAN-low.
+  const healCards = regionCards.filter(card => zoneCardGiftHpHealValue(card) > 0);
+  const dualLowTargets = getDualLowTargets(players, sourceIdx);
+  if (healCards.length && dualLowTargets.length) {
+    const bestTarget = [...dualLowTargets].sort(sortByLowestHpThenSan)[0];
+    const bestCard = [...healCards].sort((a, b) => zoneCardGiftHpHealValue(b) - zoneCardGiftHpHealValue(a))[0];
+    return { card: bestCard, targetIdx: bestTarget.idx };
+  }
+
+  // 3. Prioritize SAN-damage region cards.
+  const sanCards = regionCards.filter(card => zoneCardCanGiftLowerSan(card, { san: 99, hp: 99 }) > 0);
+  if (sanCards.length) {
+    const rankedSanCards = [...sanCards].sort((a, b) => {
+      const aBurst = a.type === 'selfDamageSANCond' ? 1 : 0;
+      const bBurst = b.type === 'selfDamageSANCond' ? 1 : 0;
+      return bBurst - aBurst || zoneCardCanGiftLowerSan(b, { san: 99, hp: 99 }) - zoneCardCanGiftLowerSan(a, { san: 99, hp: 99 });
+    });
+    for (const card of rankedSanCards) {
+      let orderedTargets;
+      if (['allDamageSAN', 'allDamageBoth'].includes(card.type)) {
+        orderedTargets = [...targets].sort((a, b) =>
+          getCultistSanTargetPriority(a.player) - getCultistSanTargetPriority(b.player) ||
+          sortByLowestSanThenHp(a, b)
+        );
+      } else {
+        orderedTargets = [...targets].sort(sortByLowestSanThenHp);
+      }
+      if (orderedTargets.length) return { card, targetIdx: orderedTargets[0].idx };
+    }
+  }
+
+  // 4. Use region cards to heal or flip targets.
+  if (healCards.length) {
+    const damagedTargets = targets.filter(({ player }) => player.hp < 10).sort(sortByLowestHpThenSan);
+    if (damagedTargets.length) {
+      const bestCard = [...healCards].sort((a, b) => zoneCardGiftHpHealValue(b) - zoneCardGiftHpHealValue(a))[0];
+      return { card: bestCard, targetIdx: damagedTargets[0].idx };
+    }
+  }
+
+  const restCards = regionCards.filter(card => zoneCardGiftRestsTarget(card));
+  if (restCards.length) {
+    const chooseRestTarget = (pool, card) => {
+      const filtered = pool.filter(({ idx }) => card.type !== 'adjRest' || !getAdjacentTargets(players, idx).includes(sourceIdx));
+      return filtered.length ? filtered[0] : null;
+    };
+    const revealedHunters = targets.filter(t => t.player.role === ROLE_HUNTER && t.player.roleRevealed).sort(sortByLowestHpThenSan);
+    const revealedTreasures = targets.filter(t => t.player.role === ROLE_TREASURE && t.player.roleRevealed).sort(sortByLowestHpThenSan);
+    const unrevealed = targets.filter(t => !t.player.roleRevealed).sort(() => Math.random() - 0.5);
+    for (const card of restCards) {
+      const candidate = chooseRestTarget(revealedHunters, card) || chooseRestTarget(revealedTreasures, card) || chooseRestTarget(unrevealed, card);
+      if (candidate) return { card, targetIdx: candidate.idx };
+    }
+  }
+
+  // 5. God cards: prefer high-skull / low-SAN targets, avoid cultists.
+  if (godCards.length) {
+    const weightedTargets = targets
+      .map(target => ({
+        ...target,
+        weight: (target.player.role === ROLE_CULTIST ? -999 : 0) + ((target.player.godEncounters || 0) * 3) + (10 - target.player.san),
+      }))
+      .sort((a, b) => b.weight - a.weight || sortByLowestSanThenHp(a, b));
+    if (weightedTargets.length && weightedTargets[0].weight > -999) {
+      return { card: godCards[0], targetIdx: weightedTargets[0].idx };
+    }
+  }
+
+  // 6. Final fallback: if unrevealed, may choose to not use skill at all.
+  if (!self.roleRevealed) return null;
+
+  const hpDamageCards = regionCards.filter(card => zoneCardGiftHpDamageValue(card, { hp: 99, san: 99 }) > 0);
+  if (hpDamageCards.length) {
+    for (const card of hpDamageCards) {
+      const lethalHunter = targets
+        .filter(t => t.player.role === ROLE_HUNTER && !t.player.isDead && t.player.hp <= zoneCardGiftHpDamageValue(card, t.player))
+        .sort(sortByLowestHpThenSan)[0];
+      if (lethalHunter) return { card, targetIdx: lethalHunter.idx };
+    }
+    const sturdyTargets = [...targets].sort((a, b) =>
+      ((b.player.hp + b.player.san) - (a.player.hp + a.player.san)) ||
+      (b.player.hp - a.player.hp) ||
+      (a.idx - b.idx)
+    );
+    if (sturdyTargets.length) return { card: hpDamageCards[0], targetIdx: sturdyTargets[0].idx };
+    const revealedHunter = targets
+      .filter(t => t.player.role === ROLE_HUNTER && t.player.roleRevealed)
+      .sort(sortByLowestHpThenSan)[0];
+    if (revealedHunter) return { card: hpDamageCards[0], targetIdx: revealedHunter.idx };
+  }
+
+  if (regionCards.length) {
+    const fallbackTarget = [...targets].sort((a, b) => (b.player.hp + b.player.san) - (a.player.hp + a.player.san))[0];
+    if (fallbackTarget) return { card: regionCards[0], targetIdx: fallbackTarget.idx };
+  }
+
+  if (godCards.length) {
+    const fallbackTarget = [...targets].sort(sortByLowestSanThenHp)[0];
+    if (fallbackTarget) return { card: godCards[0], targetIdx: fallbackTarget.idx };
+  }
+
+  return null;
+}
+
 export function aiShouldKeepZoneCard(card, ci, players, forced = false) {
   if (!card || !isZoneCard(card)) return forced;
   if (card.isGod) return true;
@@ -590,6 +857,10 @@ export function aiShouldKeepZoneCard(card, ci, players, forced = false) {
       return score >= 2.5;
     }
   }
+
+  if (role === ROLE_CULTIST) {
+    return zoneCardSupportsCultistKeep(card);
+  }
   
   const myHand = players[ci]?.hand || [];
   const myLetter = new Set(myHand.filter(c => c.letter && !c.isGod).map(c => c.letter));
@@ -620,9 +891,6 @@ export function aiShouldKeepZoneCard(card, ci, players, forced = false) {
   }
   if (role === ROLE_TREASURE) {
     return estimateTreasureZoneCardScore(card, self, players, ci) > 0;
-  }
-  if (role === ROLE_CULTIST) {
-    return estimateCultistZoneCardScore(card, self, players, ci) > 0;
   }
 
   return estimateZoneCardKeepScore(card, ci, players) > 0;

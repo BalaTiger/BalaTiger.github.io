@@ -42,6 +42,7 @@ import {
   aiChooseHunterLootCards,
   chooseFirstComePickForAI,
   chooseAiRoseThornTarget,
+  chooseAiCultistBewitchPlan,
   aiShouldKeepZoneCard,
 } from "./game/ai";
 import { mkDeck, mkRoles } from "./game/setup";
@@ -1755,9 +1756,16 @@ function aiStep(gs){
     canBewitch ||
     canSwapHands
   );
-  const useSkill = aiEffRole===ROLE_HUNTER
+  let useSkill = aiEffRole===ROLE_HUNTER
     ? shouldHunterUseSkill
     : shouldNonHunterUseSkill;
+  let cultistBewitchPlan = null;
+  if (aiEffRole === ROLE_CULTIST && useSkill) {
+    cultistBewitchPlan = chooseAiCultistBewitchPlan(P, ct);
+    if (!cultistBewitchPlan && !P[ct].roleRevealed) {
+      useSkill = false;
+    }
+  }
 
   if(aiEffRole!==ROLE_HUNTER && alive.length===0){
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
@@ -1775,7 +1783,9 @@ function aiStep(gs){
   }
 
   if(useSkill){
-    P[ct].roleRevealed=true;
+    if(aiEffRole!==ROLE_CULTIST || cultistBewitchPlan){
+      P[ct].roleRevealed=true;
+    }
     // ── v2 MCTS 目标选择 ────────────────────────────────────
     let tgt;
     if(aiEffRole===ROLE_HUNTER){
@@ -1921,19 +1931,14 @@ function aiStep(gs){
       if(!alive.length){
         huntContinue=false;
       }else{
-      const sanScore=p=>(p.hp-p.san);
-      tgt=alive.reduce((b,p)=>sanScore(p)>sanScore(b)?p:b,alive[0]);
-      const ti=P.indexOf(tgt);
-      if(P[ct].hand.length){
+      const plan = cultistBewitchPlan || chooseAiCultistBewitchPlan(P, ct);
+      if(!plan){
+        huntContinue = false;
+      }else if(P[ct].hand.length){
+        tgt=P[plan.targetIdx];
+        const ti=plan.targetIdx;
+        const sc=plan.card;
         let inspectionMeta=makeInspectionMeta(gs);
-        const hunterThreatTgt=P[ti]?.role===ROLE_HUNTER;
-        const forcedConvertGod=P[ct].hand.find(c=>c.isGod&&P[ti].godName&&P[ti].godName!==c.godKey);
-        const anyGod=P[ct].hand.find(c=>c.isGod);
-        const sanPrefer=hunterThreatTgt
-          ?['allDamageHP','adjDamageHP','allDamageSAN','adjDamageSAN','allDamageBoth','adjDamageBoth','selfDamageSAN']
-          :['allDamageSAN','adjDamageSAN','allDamageBoth','adjDamageBoth','selfDamageSAN'];
-        const sanCard=P[ct].hand.find(c=>sanPrefer.includes(c.type));
-        const sc=forcedConvertGod||anyGod||sanCard||P[ct].hand[0];
         P[ct].hand=P[ct].hand.filter(c=>c.id!==sc.id);
         L.push(`${ai.name}（邪祀者）对 ${tgt.name} 【蛊惑】，赠予 ${cardLogText(sc,{alwaysShowName:true})}`);
         if(sc.isGod){
