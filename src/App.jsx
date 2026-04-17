@@ -6632,12 +6632,6 @@ export default function Game(){
   const shouldScale=vw<DESIGN_WIDTH;
   const scaleRatio=shouldScale?Math.min(rawScale,1):1;
 
-  // Scale ratio for player areas (based on 1200px design width)
-  const DESIGN_WIDTH=1200;
-  const rawScale=vw/DESIGN_WIDTH;
-  const shouldScale=vw<DESIGN_WIDTH;
-  const scaleRatio=shouldScale?Math.min(rawScale,1):1;
-
   const applyVisibleLogPrefix=useCallback((count,authorityOverride)=>{
     const authority=Array.isArray(authorityOverride)?authorityOverride:(Array.isArray(visibleLogAuthorityRef.current)?visibleLogAuthorityRef.current:[]);
     const safeCount=Math.max(0,Math.min(count,authority.length));
