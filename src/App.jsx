@@ -11104,7 +11104,7 @@ const L=[...gs.log,`【两人一绳】${sourcePlayer.name} 与 ${targetPlayer.na
 
         {/* Scaled player areas wrapper */}
         <div style={{overflow:'hidden',width:'100%'}}>
-          <div style={{zoom:scaleRatio<1?scaleRatio:'normal',width:scaleRatio<1?`calc(100% / ${scaleRatio})`:'100%'}}>
+          <div style={{zoom:scaleRatio<1?scaleRatio:'normal'}}>
 
         {/* AI panels */}
         <div ref={aiPanelAreaRef} style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':isSmall?'repeat(3,1fr)':'repeat(4,1fr)',gap:isMobile?5:7}}>
