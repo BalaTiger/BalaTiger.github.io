@@ -1446,6 +1446,18 @@ function startNextTurn(gs){
 // ══════════════════════════════════════════════════════════════
 //  AI STEP
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  AI STEP
+// ══════════════════════════════════════════════════════════════
+function discardAiHandToLimit(P, ct, Disc, L) {
+  const aiHandLimit = P[ct]._nyaHandLimit ?? 4;
+  while(P[ct].hand.length > aiHandLimit) {
+    const c = P[ct].hand.shift();
+    Disc.push(c);
+    L.push(`${P[ct].name} 弃 ${cardLogText(c, {alwaysShowName:true})}（上限）`);
+  }
+}
+
 function aiStep(gs){
   const{players:ps,currentTurn:ct,abilityData}=gs;
   let P=copyPlayers(ps),D=[...gs.deck],Disc=[...gs.discard],L=[...gs.log];
@@ -1454,6 +1466,18 @@ function aiStep(gs){
   let playersBeforeSkillAction=null;
   let preSkillLogs=[];
   let preSkillDiscard=null;
+
+  const buildReturnPack = (nextGs, P_afterAction) => ({
+    ...nextGs,
+    _aiDrawnCard: gs._aiDrawnCard ?? gs._drawnCard ?? null,
+    _discardedDrawnCard: gs._discardedDrawnCard ?? false,
+    _aiName: ai.name,
+    _playersBeforeNextDraw: P_afterAction,
+    _playersBeforeSkillAction: playersBeforeSkillAction,
+    _preSkillLogs: preSkillLogs,
+    _preSkillDiscard: preSkillDiscard,
+    ...(aiHuntEvents.length ? { _aiHuntEvents: aiHuntEvents } : {})
+  });
 
   if(abilityData?.type==='firstComePick'&&Array.isArray(abilityData.revealedCards)){
     const pickOrder=abilityData.pickOrder||[];
@@ -1535,7 +1559,7 @@ function aiStep(gs){
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
     const _P_afterAction=copyPlayers(P);
     const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,huntAbandoned:gs.huntAbandoned||[],skillUsed:gs.skillUsed});
-    return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction,_playersBeforeSkillAction:playersBeforeSkillAction,_preSkillLogs:preSkillLogs,_preSkillDiscard:preSkillDiscard,_aiHuntEvents:aiHuntEvents};
+    return buildReturnPack(nextGs, _P_afterAction);
   }
   
   // 处理AI触发的需要目标选择的效果
@@ -1699,42 +1723,19 @@ function aiStep(gs){
     P[ct].hp=clamp(P[ct].hp+heal);P[ct].isResting=true;
     L.push(`${ai.name} 选择【休息】，掷骰 ${d1}+${d2}，回复 ${heal}HP，翻面休息中`);
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-    const aiHandLimit=P[ct]._nyaHandLimit??4;
-    while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 ${cardLogText(c,{alwaysShowName:true})}（上限）`);}
+    discardAiHandToLimit(P, ct, Disc, L);
     const _P_afterRest=copyPlayers(P);
     const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,restUsed:true,skillUsed:false});
-    return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterRest,_playersBeforeSkillAction:playersBeforeSkillAction,_preSkillLogs:preSkillLogs,_preSkillDiscard:preSkillDiscard};
+    return buildReturnPack(nextGs, _P_afterRest);
   }
 // 追猎者/邪祀者积极发动技能(65%); 寻宝者随进度提升(35%→55%)
-  const myNonGod=P[ct].hand.filter(c=>!c.isGod);
-  const myProgress=aiEffRole===ROLE_TREASURE
-    ?(new Set(myNonGod.map(c=>c.letter)).size+new Set(myNonGod.map(c=>c.number)).size):0;
-  
-  // 给追猎者更高的出手倾向以促成连续追捕
-  let skillRate = 0.35;
-  if (aiEffRole === ROLE_HUNTER) skillRate = 0.97;
-  else if (aiEffRole === ROLE_CULTIST) skillRate = 0.95;
-  else if (myProgress >= 7) skillRate = 0.55;
-
-  const canUseSkill = !gs.restUsed && (aiEffRole === ROLE_HUNTER ? true : !gs.skillUsed);
-  const hunterZoneCards = P[ct].hand.filter(isZoneCard);
-  const hunterHandLimit = P[ct]._nyaHandLimit ?? 4;
-  const hunterOverLimit = hunterZoneCards.length > hunterHandLimit;
-  const someoneWounded = P.some((p,i)=>i!==ct && !p.isDead && p.hp < 10);
   let huntContinue = true;
   let newAbandoned = gs.huntAbandoned || [];
   const getHunterTargets = () => getHunterChaseTargets(P,ct,newAbandoned);
-  const shouldHunterUseSkill = canUseSkill && aiEffRole===ROLE_HUNTER && hunterZoneCards.length>0 && getHunterTargets().length>0 && (hunterOverLimit || someoneWounded);
-  const canBewitch = aiEffRole===ROLE_CULTIST && P[ct].hand.length>0 && alive.length>0;
-  const canSwapHands = aiEffRole===ROLE_TREASURE && P[ct].hand.length>0 && alive.some(p=>p.hand.length>0);
-  const shouldNonHunterUseSkill = canUseSkill && Math.random() < skillRate && (
-    canBewitch ||
-    canSwapHands
-  );
-  let useSkill = aiEffRole===ROLE_HUNTER
-    ? shouldHunterUseSkill
-    : shouldNonHunterUseSkill;
+  const aiSkillDecision=decideAiSkillUsage(gs,P,ct,aiEffRole,getHunterTargets());
+  let useSkill=aiSkillDecision.useSkill;
   let cultistBewitchPlan = null;
+  const hunterZoneCards = P[ct].hand.filter(isZoneCard);
   if (aiEffRole === ROLE_CULTIST && useSkill) {
     cultistBewitchPlan = chooseAiCultistBewitchPlan(P, ct);
     if (!cultistBewitchPlan && !P[ct].roleRevealed) {
@@ -1744,12 +1745,11 @@ function aiStep(gs){
 
   if(aiEffRole!==ROLE_HUNTER && alive.length===0){
     const win=checkWin(P,gs._isMP);if(win)return{...gs,players:P,deck:D,discard:Disc,log:L,gameOver:win};
-    const aiHandLimit=P[ct]._nyaHandLimit??4;
-    while(P[ct].hand.length>aiHandLimit){const c=P[ct].hand.shift();Disc.push(c);L.push(`${ai.name} 弃 ${cardLogText(c,{alwaysShowName:true})}（上限）`);}
+    discardAiHandToLimit(P, ct, Disc, L);
     L.push(`${ai.name} 未使用技能，结束回合`);
     const _P_afterAction=copyPlayers(P);
     const nextGs=startNextTurn({...gs,players:P,deck:D,discard:Disc,log:L,currentTurn:ct,huntAbandoned:newAbandoned,skillUsed:gs.skillUsed});
-    return{...nextGs,_aiDrawnCard:gs._aiDrawnCard??gs._drawnCard??null,_discardedDrawnCard:gs._discardedDrawnCard??false,_aiName:ai.name,_playersBeforeNextDraw:_P_afterAction,_playersBeforeSkillAction:playersBeforeSkillAction,_preSkillLogs:preSkillLogs,_preSkillDiscard:preSkillDiscard};
+    return buildReturnPack(nextGs, _P_afterAction);
   }
 
   // 如果无法使用技能，重置huntContinue为false，防止无限循环

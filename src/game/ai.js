@@ -603,6 +603,109 @@ export function chooseFirstComePickForAI(cards, ci, players) {
   return scored[0].index;
 }
 
+export function getHunterChaseTargets(players, hunterIdx, huntAbandoned = []) {
+  return players
+    .map((player, idx) => ({ player, idx }))
+    .filter(({ player, idx }) => !player.isDead && idx !== hunterIdx && player.role !== ROLE_HUNTER && !huntAbandoned.includes(idx))
+    .filter(({ player }) => (player.hand || []).some(isZoneCard));
+}
+
+export function shouldHunterKeepChasing(players, hunterIdx, huntAbandoned = []) {
+  const hunter = players[hunterIdx];
+  if (!hunter || hunter.isDead) return false;
+  const hunterZoneCards = (hunter.hand || []).filter(isZoneCard);
+  const hunterHandLimit = hunter._nyaHandLimit ?? 4;
+  const hunterOverLimit = hunterZoneCards.length > hunterHandLimit;
+  const someoneWounded = players.some((p, i) => i !== hunterIdx && !p.isDead && p.hp < 10);
+  return hunterZoneCards.length > 0 && getHunterChaseTargets(players, hunterIdx, huntAbandoned).length > 0 && (hunterOverLimit || someoneWounded);
+}
+
+function getCthulhuRestBias(ai) {
+  if (ai?.godName !== 'CTH' || !ai?.godLevel) return 0;
+  return ai.godLevel * 0.08;
+}
+
+export function shouldAiRest(gs, ai, aiEffRole) {
+  if (!ai || ai.isDead) return false;
+  if (gs?.restUsed || gs?.skillUsed) return false;
+  if (ai.hp >= 9) return false;
+
+  const cthBias = getCthulhuRestBias(ai);
+  if (aiEffRole === ROLE_TREASURE) {
+    if (ai.hp <= 4) return Math.random() < Math.min(0.96, 0.88 + cthBias);
+    if (ai.hp <= 6) return Math.random() < Math.min(0.90, 0.78 + cthBias);
+    return Math.random() < Math.min(0.78, 0.62 + cthBias);
+  }
+
+  if (aiEffRole === ROLE_HUNTER) {
+    if (ai.hp <= 5) return Math.random() < Math.min(0.84, 0.75 + cthBias);
+    return false;
+  }
+
+  if (ai.hp <= 3) return Math.random() < Math.min(0.95, 0.86 + cthBias);
+  if (ai.hp <= 5) return Math.random() < Math.min(0.88, 0.72 + cthBias);
+  return Math.random() < Math.min(0.74, 0.52 + cthBias);
+}
+
+export function decideAiSkillUsage(gs, players, ct, aiEffRole, hunterTargets = []) {
+  const self = players?.[ct];
+  if (!self || self.isDead) {
+    return {
+      canUseSkill: false,
+      shouldHunterUseSkill: false,
+      shouldNonHunterUseSkill: false,
+      useSkill: false,
+      skillRate: 0,
+      canBewitch: false,
+      canSwapHands: false,
+    };
+  }
+
+  const myNonGod = (self.hand || []).filter(c => !c.isGod);
+  const myProgress = aiEffRole === ROLE_TREASURE
+    ? (new Set(myNonGod.map(c => c.letter)).size + new Set(myNonGod.map(c => c.number)).size)
+    : 0;
+
+  let skillRate = 0.35;
+  if (aiEffRole === ROLE_HUNTER) skillRate = 0.97;
+  else if (aiEffRole === ROLE_CULTIST) skillRate = 0.95;
+  else if (myProgress >= 7) skillRate = 0.55;
+
+  const canUseSkill = !gs?.restUsed && (aiEffRole === ROLE_HUNTER ? true : !gs?.skillUsed);
+  const hunterZoneCards = (self.hand || []).filter(isZoneCard);
+  const hunterHandLimit = self._nyaHandLimit ?? 4;
+  const hunterOverLimit = hunterZoneCards.length > hunterHandLimit;
+  const someoneWounded = players.some((p, i) => i !== ct && !p.isDead && p.hp < 10);
+
+  const shouldHunterUseSkill =
+    canUseSkill &&
+    aiEffRole === ROLE_HUNTER &&
+    hunterZoneCards.length > 0 &&
+    hunterTargets.length > 0 &&
+    (hunterOverLimit || someoneWounded);
+
+  const aliveOthers = players.some((p, i) => i !== ct && !p.isDead);
+  const canBewitch = aiEffRole === ROLE_CULTIST && (self.hand || []).length > 0 && aliveOthers;
+  const canSwapHands = aiEffRole === ROLE_TREASURE && (self.hand || []).length > 0 && players.some((p, i) => i !== ct && !p.isDead && (p.hand || []).length > 0);
+  const shouldNonHunterUseSkill = canUseSkill && Math.random() < skillRate && (canBewitch || canSwapHands);
+  const useSkill = aiEffRole === ROLE_HUNTER ? shouldHunterUseSkill : shouldNonHunterUseSkill;
+
+  return {
+    canUseSkill,
+    shouldHunterUseSkill,
+    shouldNonHunterUseSkill,
+    useSkill,
+    skillRate,
+    canBewitch,
+    canSwapHands,
+    myProgress,
+    hunterZoneCards,
+    hunterHandLimit,
+    hunterOverLimit,
+    someoneWounded,
+  };
+}
+
 export function chooseAiRoseThornTarget(players, sourceIdx, validTargetIndices) {
   if (!Array.isArray(validTargetIndices) || !validTargetIndices.length) return null;
   const sourcePlayer = players?.[sourceIdx];
