@@ -79,7 +79,7 @@ const FIXED_ZONE_CARD_VARIANTS_BY_KEY = {
       "effectScope": "self"
     },
     {
-      "name": "目击食人者",
+      "name": "目击尸体",
       "desc": "你失去1SAN，若你当前SAN≥8则额外失去2SAN",
       "type": "selfDamageSANCond",
       "val": 1,
@@ -427,7 +427,7 @@ const FIXED_ZONE_CARD_VARIANTS_BY_KEY = {
       "effectScope": "self"
     },
     {
-      "name": "血之窥探",
+      "name": "目击食人者",
       "desc": "你失去3HP，选一名角色偷看其一张手牌",
       "type": "selfDamageHPPeek",
       "val": 3,
